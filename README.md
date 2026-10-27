@@ -24,7 +24,7 @@
    * Ban đầu ở trạng thái gốc (Base state) thuần 1 màu ở cả 6 mặt.
    * Nút **"1. Xáo Trộn"** ngẫu nhiên hóa vị trí theo chuẩn Rubik WCA.
    * Nút **"2. Bắt Đầu Tính Giờ"** kích hoạt đồng hồ miligiây và đếm lượt xoay.
-   * Bảng nút xoay chuẩn thực tế: Ngang trên (Trái/Phải), Ngang dưới (Trái/Phải), Dọc trái (Lên/Xuống), Dọc phải (Lên/Xuống), Mặt trước (Thuận/Nghịch).
+   * Bảng điều khiển xoay chuẩn thực tế 7 tầng/trục: Hàng ngang (Trên / Giữa Equator / Dưới), Cột dọc (Trái / Giữa Middle / Phải), Mặt trước với icon vector Neon Cyan phát sáng đồng bộ, không lỗi hiển thị.
    * Tự động phát hiện chiến thắng khi 6 mặt đồng nhất màu và có nút **"Bắt Đầu Lại"** bất cứ lúc nào.
 2. **Quantum Caro (Cờ Caro Lượng Tử Đấu AI Minimax)**:
    * Bàn cờ 12x12 đấu AI Heuristic Minimax 3 cấp độ.
@@ -67,6 +67,8 @@ DACC_LTDD_GODDY/
 |
 |-- Goddy_Game_WebAPI.sln           # Solution mở trong Visual Studio 2022
 |-- Goddy_Gaming_App_Release.apk    # File cài đặt APK Release tối ưu AOT (~52.4MB)
+|-- Goddy_Gaming_Hub_ThuyetTrinh.pptx # File trình chiếu PowerPoint đồ án (9 slide chuẩn)
+|-- KichBan_ThuyetTrinh_Goddy.md    # Kịch bản thuyết trình chi tiết từng slide
 |-- DacTa_YeuCau_Goddy_AppChoiGame.md # Hồ sơ đặc tả yêu cầu kỹ thuật phần mềm (SRS)
 |-- DacTa_YeuCau_Goddy_AppChoiGame.txt
 `-- BaoCao_Goddy_AppChoiGame.txt    # Báo cáo tổng hợp đồ án
