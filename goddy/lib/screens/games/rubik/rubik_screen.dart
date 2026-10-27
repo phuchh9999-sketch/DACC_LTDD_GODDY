@@ -483,9 +483,11 @@ class _RubikScreenState extends State<RubikScreen> {
           // Row 1: Xoay Hàng Ngang Trên (Top Row)
           _buildDirectionRow(
             title: 'Hàng Ngang Trên (Top):',
-            btn1Text: '⬅️ Ngang Trái',
+            btn1Icon: Icons.arrow_back_rounded,
+            btn1Text: 'Ngang Trái',
             btn1Move: 'U',
-            btn2Text: 'Ngang Phải ➡️',
+            btn2Icon: Icons.arrow_forward_rounded,
+            btn2Text: 'Ngang Phải',
             btn2Move: "U'",
           ),
           const SizedBox(height: 8),
@@ -493,9 +495,11 @@ class _RubikScreenState extends State<RubikScreen> {
           // Row 2: Xoay Hàng Ngang Giữa (Middle Row)
           _buildDirectionRow(
             title: 'Hàng Ngang Giữa (Equator):',
-            btn1Text: '⬅️ Ngang Trái',
+            btn1Icon: Icons.arrow_back_rounded,
+            btn1Text: 'Ngang Trái',
             btn1Move: "E'",
-            btn2Text: 'Ngang Phải ➡️',
+            btn2Icon: Icons.arrow_forward_rounded,
+            btn2Text: 'Ngang Phải',
             btn2Move: 'E',
           ),
           const SizedBox(height: 8),
@@ -503,9 +507,11 @@ class _RubikScreenState extends State<RubikScreen> {
           // Row 3: Xoay Hàng Ngang Dưới (Bottom Row)
           _buildDirectionRow(
             title: 'Hàng Ngang Dưới (Bottom):',
-            btn1Text: '⬅️ Ngang Trái',
+            btn1Icon: Icons.arrow_back_rounded,
+            btn1Text: 'Ngang Trái',
             btn1Move: "D'",
-            btn2Text: 'Ngang Phải ➡️',
+            btn2Icon: Icons.arrow_forward_rounded,
+            btn2Text: 'Ngang Phải',
             btn2Move: 'D',
           ),
           const SizedBox(height: 8),
@@ -513,9 +519,11 @@ class _RubikScreenState extends State<RubikScreen> {
           // Row 4: Xoay Cột Dọc Trái (Left Column)
           _buildDirectionRow(
             title: 'Cột Dọc Trái (Left):',
-            btn1Text: '⬆️ Dọc Lên',
+            btn1Icon: Icons.arrow_upward_rounded,
+            btn1Text: 'Dọc Lên',
             btn1Move: "L'",
-            btn2Text: 'Dọc Xuống ⬇️',
+            btn2Icon: Icons.arrow_downward_rounded,
+            btn2Text: 'Dọc Xuống',
             btn2Move: 'L',
           ),
           const SizedBox(height: 8),
@@ -523,9 +531,11 @@ class _RubikScreenState extends State<RubikScreen> {
           // Row 5: Xoay Cột Dọc Giữa (Middle Column)
           _buildDirectionRow(
             title: 'Cột Dọc Giữa (Middle):',
-            btn1Text: '⬆️ Dọc Lên',
+            btn1Icon: Icons.arrow_upward_rounded,
+            btn1Text: 'Dọc Lên',
             btn1Move: "M'",
-            btn2Text: 'Dọc Xuống ⬇️',
+            btn2Icon: Icons.arrow_downward_rounded,
+            btn2Text: 'Dọc Xuống',
             btn2Move: 'M',
           ),
           const SizedBox(height: 8),
@@ -533,9 +543,11 @@ class _RubikScreenState extends State<RubikScreen> {
           // Row 6: Xoay Cột Dọc Phải (Right Column)
           _buildDirectionRow(
             title: 'Cột Dọc Phải (Right):',
-            btn1Text: '⬆️ Dọc Lên',
+            btn1Icon: Icons.arrow_upward_rounded,
+            btn1Text: 'Dọc Lên',
             btn1Move: 'R',
-            btn2Text: 'Dọc Xuống ⬇️',
+            btn2Icon: Icons.arrow_downward_rounded,
+            btn2Text: 'Dọc Xuống',
             btn2Move: "R'",
           ),
           const SizedBox(height: 8),
@@ -543,9 +555,11 @@ class _RubikScreenState extends State<RubikScreen> {
           // Row 7: Xoay Mặt Trước (Front Face)
           _buildDirectionRow(
             title: 'Mặt Trước (Front):',
-            btn1Text: '🔄 Xoay Thuận',
+            btn1Icon: Icons.rotate_right_rounded,
+            btn1Text: 'Xoay Thuận',
             btn1Move: 'F',
-            btn2Text: '↩️ Xoay Nghịch',
+            btn2Icon: Icons.rotate_left_rounded,
+            btn2Text: 'Xoay Nghịch',
             btn2Move: "F'",
           ),
         ],
@@ -555,8 +569,10 @@ class _RubikScreenState extends State<RubikScreen> {
 
   Widget _buildDirectionRow({
     required String title,
+    required IconData btn1Icon,
     required String btn1Text,
     required String btn1Move,
+    required IconData btn2Icon,
     required String btn2Text,
     required String btn2Move,
   }) {
@@ -578,57 +594,77 @@ class _RubikScreenState extends State<RubikScreen> {
             flex: 6,
             child: Row(
               children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 38,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E293B),
-                        foregroundColor: GoddyTheme.neonCyan,
-                        padding: EdgeInsets.zero,
-                        elevation: 1,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(color: Colors.white12),
-                        ),
-                      ),
-                      onPressed: () => _cubeKey.currentState?.executeMove(btn1Move),
-                      child: Text(
-                        btn1Text,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
+                _buildActionButton(
+                  icon: btn1Icon,
+                  text: btn1Text,
+                  move: btn1Move,
                 ),
                 const SizedBox(width: 6),
-                Expanded(
-                  child: SizedBox(
-                    height: 38,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1E293B),
-                        foregroundColor: GoddyTheme.neonCyan,
-                        padding: EdgeInsets.zero,
-                        elevation: 1,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          side: const BorderSide(color: Colors.white12),
-                        ),
-                      ),
-                      onPressed: () => _cubeKey.currentState?.executeMove(btn2Move),
-                      child: Text(
-                        btn2Text,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
+                _buildActionButton(
+                  icon: btn2Icon,
+                  text: btn2Text,
+                  move: btn2Move,
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String text,
+    required String move,
+  }) {
+    return Expanded(
+      child: SizedBox(
+        height: 38,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF1E293B),
+            foregroundColor: GoddyTheme.neonCyan,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: GoddyTheme.neonCyan.withValues(alpha: 0.3)),
+            ),
+          ),
+          onPressed: () => _cubeKey.currentState?.executeMove(move),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: GoddyTheme.neonCyan,
+                size: 14,
+                shadows: const [
+                  Shadow(color: GoddyTheme.neonCyan, blurRadius: 6),
+                ],
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: GoddyTheme.neonCyan,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(color: GoddyTheme.neonCyan, blurRadius: 4),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
