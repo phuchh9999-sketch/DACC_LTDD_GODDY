@@ -17,7 +17,7 @@ class RubikCubeWidget extends StatefulWidget {
 }
 
 class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProviderStateMixin {
-  // Spherical rotation angles for 360 degree drag
+  // Classic isometric camera viewing angle (showing Top, Left, Right faces)
   double _rotX = -0.55;
   double _rotY = 0.65;
 
@@ -27,19 +27,20 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
   // 6 faces: 0=Up(White), 1=Down(Yellow), 2=Front(Green), 3=Back(Blue), 4=Right(Red), 5=Left(Orange)
   late List<List<Color>> _faces;
 
-  static const Color cWhite = Color(0xFFF8FAFC);
-  static const Color cYellow = Color(0xFFFFD166);
-  static const Color cGreen = Color(0xFF06D6A0);
-  static const Color cBlue = Color(0xFF118AB2);
-  static const Color cRed = Color(0xFFEF476F);
-  static const Color cOrange = Color(0xFFF77F00);
+  // Official competition Rubik's WCA colors
+  static const Color cWhite = Color(0xFFF8FAFC);  // White (Top/Up)
+  static const Color cYellow = Color(0xFFFFD500); // Yellow (Down)
+  static const Color cGreen = Color(0xFF009B48);  // Vivid Green (Front)
+  static const Color cBlue = Color(0xFF0046AD);   // Royal Blue (Back)
+  static const Color cRed = Color(0xFFB71234);    // Rubik Red (Right)
+  static const Color cOrange = Color(0xFFFF5800); // Vivid Orange (Left)
 
   @override
   void initState() {
     super.initState();
     _turnController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 180),
     );
     resetCube();
   }
@@ -53,12 +54,12 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
   void resetCube() {
     setState(() {
       _faces = [
-        List.filled(9, cWhite),  // Up
-        List.filled(9, cYellow), // Down
-        List.filled(9, cGreen),  // Front
-        List.filled(9, cBlue),   // Back
-        List.filled(9, cRed),    // Right
-        List.filled(9, cOrange), // Left
+        List.filled(9, cWhite),  // 0 Up
+        List.filled(9, cYellow), // 1 Down
+        List.filled(9, cGreen),  // 2 Front
+        List.filled(9, cBlue),   // 3 Back
+        List.filled(9, cRed),    // 4 Right
+        List.filled(9, cOrange), // 5 Left
       ];
     });
   }
@@ -231,20 +232,20 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
         setState(() {
           _rotY += details.delta.dx * 0.015;
           _rotX -= details.delta.dy * 0.015;
-          _rotX = _rotX.clamp(-1.4, 1.4);
+          _rotX = _rotX.clamp(-1.45, 1.45);
         });
       },
       child: Center(
         child: SizedBox(
-          width: 260,
-          height: 260,
+          width: 280,
+          height: 280,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              // 3D Solid Rubik Cube Custom Painter with full depth & zero gaps
+              // Ultra-Realistic 3D Solid Rubik Cube Canvas
               CustomPaint(
-                size: const Size(260, 260),
-                painter: _RubikCube3dPainter(
+                size: const Size(280, 280),
+                painter: _RealisticRubik3dPainter(
                   rotX: _rotX,
                   rotY: _rotY,
                   faces: _faces,
@@ -325,16 +326,16 @@ class _VisibleFaceData {
   });
 }
 
-class _RubikCube3dPainter extends CustomPainter {
+class _RealisticRubik3dPainter extends CustomPainter {
   final double rotX;
   final double rotY;
   final List<List<Color>> faces;
 
-  static const double L = 68.0; // Half cube size (total width = 136)
-  static const double fov = 420.0;
-  static const _Vector3d lightDir = _Vector3d(-0.35, -0.65, 0.67);
+  static const double L = 72.0; // Half cube size (total cube width = 144px)
+  static const double fov = 460.0;
+  static const _Vector3d lightDir = _Vector3d(-0.4, -0.6, 0.69);
 
-  const _RubikCube3dPainter({
+  const _RealisticRubik3dPainter({
     required this.rotX,
     required this.rotY,
     required this.faces,
@@ -344,9 +345,56 @@ class _RubikCube3dPainter extends CustomPainter {
     return v.rotateY(rotY).rotateX(rotX);
   }
 
+  Path _buildRoundedQuad(List<Offset> pts, double r) {
+    final path = Path();
+    final p0In = Offset.lerp(pts[0], pts[3], r)!;
+    final p0Out = Offset.lerp(pts[0], pts[1], r)!;
+    final p1In = Offset.lerp(pts[1], pts[0], r)!;
+    final p1Out = Offset.lerp(pts[1], pts[2], r)!;
+    final p2In = Offset.lerp(pts[2], pts[1], r)!;
+    final p2Out = Offset.lerp(pts[2], pts[3], r)!;
+    final p3In = Offset.lerp(pts[3], pts[2], r)!;
+    final p3Out = Offset.lerp(pts[3], pts[0], r)!;
+
+    path.moveTo(p0Out.dx, p0Out.dy);
+    path.lineTo(p1In.dx, p1In.dy);
+    path.quadraticBezierTo(pts[1].dx, pts[1].dy, p1Out.dx, p1Out.dy);
+    path.lineTo(p2In.dx, p2In.dy);
+    path.quadraticBezierTo(pts[2].dx, pts[2].dy, p2Out.dx, p2Out.dy);
+    path.lineTo(p3In.dx, p3In.dy);
+    path.quadraticBezierTo(pts[3].dx, pts[3].dy, p3Out.dx, p3Out.dy);
+    path.lineTo(p0In.dx, p0In.dy);
+    path.quadraticBezierTo(pts[0].dx, pts[0].dy, p0Out.dx, p0Out.dy);
+    path.close();
+    return path;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
+    final center = Offset(size.width / 2, size.height / 2 - 8);
+
+    // 1. Soft 3D ambient shadow on table surface beneath the cube
+    final shadowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.black.withValues(alpha: 0.65),
+          Colors.black.withValues(alpha: 0.25),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCenter(
+        center: Offset(center.dx, center.dy + L * 1.55),
+        width: L * 3.4,
+        height: L * 0.9,
+      ));
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(center.dx, center.dy + L * 1.55),
+        width: L * 3.4,
+        height: L * 0.9,
+      ),
+      shadowPaint,
+    );
 
     // 6 Faces geometric definition: (center, uAxis, vAxis, normal)
     final faceDefs = [
@@ -368,7 +416,7 @@ class _RubikCube3dPainter extends CustomPainter {
 
     for (int i = 0; i < 6; i++) {
       final normal = _transform(faceDefs[i].$4);
-      // Back-face culling: face is visible when normal.z > 0 (facing the screen)
+      // Face is visible when normal.z > 0 (facing the screen)
       if (normal.z > 0.001) {
         final faceCenter = _transform(faceDefs[i].$1);
         final diffuse = (normal.dot(lightDir)).clamp(0.0, 1.0);
@@ -380,26 +428,22 @@ class _RubikCube3dPainter extends CustomPainter {
       }
     }
 
-    // Sort visible faces by Z-depth (Painters algorithm: furthest first)
+    // Sort visible faces by Z-depth (furthest first)
     visibleFaces.sort((a, b) => a.centerZ.compareTo(b.centerZ));
 
     final blackBodyPaint = Paint()
-      ..color = const Color(0xFF0F172A)
+      ..color = const Color(0xFF0D1117)
       ..style = PaintingStyle.fill;
 
-    final borderPaint = Paint()
-      ..color = const Color(0xFF020617)
+    final outerChamferPaint = Paint()
+      ..color = const Color(0xFF000000)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
+      ..strokeWidth = 3.5;
 
     final stickerBorderPaint = Paint()
-      ..color = Colors.black87
+      ..color = const Color(0xFF161B22)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    final centerDotPaint = Paint()
-      ..color = Colors.black26
-      ..style = PaintingStyle.fill;
+      ..strokeWidth = 1.6;
 
     // Draw visible faces
     for (final vf in visibleFaces) {
@@ -409,25 +453,19 @@ class _RubikCube3dPainter extends CustomPainter {
       final uAxis = def.$2;
       final vAxis = def.$3;
 
-      // 1. Draw solid black mechanical face plate (Zero gap)
+      // 1. Solid Black Plastic Cube Chassis (Zero gap between faces)
       final cTL = _transform(fCenter - uAxis * L - vAxis * L).project(center, fov);
       final cTR = _transform(fCenter + uAxis * L - vAxis * L).project(center, fov);
       final cBR = _transform(fCenter + uAxis * L + vAxis * L).project(center, fov);
       final cBL = _transform(fCenter - uAxis * L + vAxis * L).project(center, fov);
 
-      final facePath = Path()
-        ..moveTo(cTL.dx, cTL.dy)
-        ..lineTo(cTR.dx, cTR.dy)
-        ..lineTo(cBR.dx, cBR.dy)
-        ..lineTo(cBL.dx, cBL.dy)
-        ..close();
+      final faceBaseQuad = _buildRoundedQuad([cTL, cTR, cBR, cBL], 0.05);
+      canvas.drawPath(faceBaseQuad, blackBodyPaint);
+      canvas.drawPath(faceBaseQuad, outerChamferPaint);
 
-      canvas.drawPath(facePath, blackBodyPaint);
-      canvas.drawPath(facePath, borderPaint);
-
-      // 2. Draw 9 stickers (row 0..2, col 0..2)
+      // 2. Draw 9 Rounded Chamfered Stickers (3x3 grid)
       const double step = (2 * L) / 3.0;
-      const double pad = 2.2; // Spacing between stickers showing black frame
+      const double pad = 3.2; // Deep black groove between cubelets
 
       for (int row = 0; row < 3; row++) {
         for (int col = 0; col < 3; col++) {
@@ -444,37 +482,58 @@ class _RubikCube3dPainter extends CustomPainter {
           final p2 = _transform(fCenter + uAxis * u1 + vAxis * v1).project(center, fov);
           final p3 = _transform(fCenter + uAxis * u0 + vAxis * v1).project(center, fov);
 
-          final stickerPath = Path()
-            ..moveTo(p0.dx, p0.dy)
-            ..lineTo(p1.dx, p1.dy)
-            ..lineTo(p2.dx, p2.dy)
-            ..lineTo(p3.dx, p3.dy)
-            ..close();
+          // Build realistic rounded corner sticker polygon in 3D perspective
+          final stickerPath = _buildRoundedQuad([p0, p1, p2, p3], 0.16);
 
-          // Lighting shading
-          final brightness = 0.75 + 0.25 * vf.diffuse;
-          final shadedColor = Color.fromARGB(
+          // Realistic 3D shading
+          final brightness = 0.76 + 0.24 * vf.diffuse;
+          final baseShaded = Color.fromARGB(
             color.a.toInt(),
             (color.r * 255 * brightness).clamp(0, 255).toInt(),
             (color.g * 255 * brightness).clamp(0, 255).toInt(),
             (color.b * 255 * brightness).clamp(0, 255).toInt(),
           );
 
+          // Glossy Plastic / Specular Highlight (matching real physical Speedcube)
+          final stickerRect = stickerPath.getBounds();
           final fillPaint = Paint()
-            ..color = shadedColor
+            ..shader = LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color.lerp(baseShaded, Colors.white, 0.28)!,
+                baseShaded,
+                Color.lerp(baseShaded, Colors.black, 0.15)!,
+              ],
+              stops: const [0.0, 0.45, 1.0],
+            ).createShader(stickerRect)
             ..style = PaintingStyle.fill;
 
           canvas.drawPath(stickerPath, fillPaint);
           canvas.drawPath(stickerPath, stickerBorderPaint);
 
-          // If this is the CENTER sticker (idx == 4):
-          // Draw subtle emblem dot highlighting the center piece
-          if (stickerIdx == 4) {
+          // 3. Branded Speedcube Emblem on White Center Sticker (Matching Reference Image 2)
+          if (fIdx == 0 && stickerIdx == 4) {
             final centerPoint = Offset(
               (p0.dx + p1.dx + p2.dx + p3.dx) / 4,
               (p0.dy + p1.dy + p2.dy + p3.dy) / 4,
             );
-            canvas.drawCircle(centerPoint, 3.5, centerDotPaint);
+            // Draw Rubik Logo Badge
+            final badgePaint = Paint()
+              ..color = const Color(0xFF1E293B)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.4;
+            canvas.drawCircle(centerPoint, 8.0, Paint()..color = Colors.white.withValues(alpha: 0.9));
+            canvas.drawCircle(centerPoint, 8.0, badgePaint);
+
+            // Mini 3D Logo Cube
+            final logoPaint = Paint()..style = PaintingStyle.fill;
+            logoPaint.color = RubikCubeWidgetState.cRed;
+            canvas.drawCircle(centerPoint + const Offset(-2, -2), 2.0, logoPaint);
+            logoPaint.color = RubikCubeWidgetState.cGreen;
+            canvas.drawCircle(centerPoint + const Offset(2, -2), 2.0, logoPaint);
+            logoPaint.color = RubikCubeWidgetState.cBlue;
+            canvas.drawCircle(centerPoint + const Offset(0, 2), 2.0, logoPaint);
           }
         }
       }
@@ -482,7 +541,7 @@ class _RubikCube3dPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _RubikCube3dPainter oldDelegate) {
+  bool shouldRepaint(covariant _RealisticRubik3dPainter oldDelegate) {
     return oldDelegate.rotX != rotX || oldDelegate.rotY != rotY || oldDelegate.faces != faces;
   }
 }
