@@ -125,16 +125,16 @@ class _SlidePuzzleScreenState extends State<SlidePuzzleScreen> {
         // event.x: tilt left/right (positive = tilted left, negative = tilted right)
         // event.y: tilt up/down (positive = tilted down, negative = tilted up)
         if (event.x > threshold) {
-          _tiltMove('RIGHT'); // Sliders move right into empty slot on left
+          _tiltMove('LEFT'); // Phone tilted left -> tiles slide LEFT
           _lastTiltTime = now;
         } else if (event.x < -threshold) {
-          _tiltMove('LEFT');
+          _tiltMove('RIGHT'); // Phone tilted right -> tiles slide RIGHT
           _lastTiltTime = now;
         } else if (event.y > threshold) {
-          _tiltMove('UP');
+          _tiltMove('DOWN'); // Phone tilted downwards -> tiles slide DOWN
           _lastTiltTime = now;
         } else if (event.y < -threshold) {
-          _tiltMove('DOWN');
+          _tiltMove('UP'); // Phone tilted upwards -> tiles slide UP
           _lastTiltTime = now;
         }
       });
@@ -490,17 +490,17 @@ class _SlidePuzzleScreenState extends State<SlidePuzzleScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildTiltButton(Icons.arrow_back, () => _tiltMove('RIGHT')),
+                  _buildTiltButton(Icons.arrow_back, () => _tiltMove('LEFT')),
                   const SizedBox(width: 8),
                   Column(
                     children: [
-                      _buildTiltButton(Icons.arrow_upward, () => _tiltMove('DOWN')),
+                      _buildTiltButton(Icons.arrow_upward, () => _tiltMove('UP')),
                       const SizedBox(height: 6),
-                      _buildTiltButton(Icons.arrow_downward, () => _tiltMove('UP')),
+                      _buildTiltButton(Icons.arrow_downward, () => _tiltMove('DOWN')),
                     ],
                   ),
                   const SizedBox(width: 8),
-                  _buildTiltButton(Icons.arrow_forward, () => _tiltMove('LEFT')),
+                  _buildTiltButton(Icons.arrow_forward, () => _tiltMove('RIGHT')),
                 ],
               ),
 
