@@ -490,7 +490,17 @@ class _RubikScreenState extends State<RubikScreen> {
           ),
           const SizedBox(height: 8),
 
-          // Row 2: Xoay Hàng Ngang Dưới (Bottom Row)
+          // Row 2: Xoay Hàng Ngang Giữa (Middle Row)
+          _buildDirectionRow(
+            title: 'Hàng Ngang Giữa (Equator):',
+            btn1Text: '⬅️ Ngang Trái',
+            btn1Move: "E'",
+            btn2Text: 'Ngang Phải ➡️',
+            btn2Move: 'E',
+          ),
+          const SizedBox(height: 8),
+
+          // Row 3: Xoay Hàng Ngang Dưới (Bottom Row)
           _buildDirectionRow(
             title: 'Hàng Ngang Dưới (Bottom):',
             btn1Text: '⬅️ Ngang Trái',
@@ -500,7 +510,7 @@ class _RubikScreenState extends State<RubikScreen> {
           ),
           const SizedBox(height: 8),
 
-          // Row 3: Xoay Cột Dọc Trái (Left Column)
+          // Row 4: Xoay Cột Dọc Trái (Left Column)
           _buildDirectionRow(
             title: 'Cột Dọc Trái (Left):',
             btn1Text: '⬆️ Dọc Lên',
@@ -510,7 +520,17 @@ class _RubikScreenState extends State<RubikScreen> {
           ),
           const SizedBox(height: 8),
 
-          // Row 4: Xoay Cột Dọc Phải (Right Column)
+          // Row 5: Xoay Cột Dọc Giữa (Middle Column)
+          _buildDirectionRow(
+            title: 'Cột Dọc Giữa (Middle):',
+            btn1Text: '⬆️ Dọc Lên',
+            btn1Move: "M'",
+            btn2Text: 'Dọc Xuống ⬇️',
+            btn2Move: 'M',
+          ),
+          const SizedBox(height: 8),
+
+          // Row 6: Xoay Cột Dọc Phải (Right Column)
           _buildDirectionRow(
             title: 'Cột Dọc Phải (Right):',
             btn1Text: '⬆️ Dọc Lên',
@@ -520,7 +540,7 @@ class _RubikScreenState extends State<RubikScreen> {
           ),
           const SizedBox(height: 8),
 
-          // Row 5: Xoay Mặt Trước (Front Face)
+          // Row 7: Xoay Mặt Trước (Front Face)
           _buildDirectionRow(
             title: 'Mặt Trước (Front):',
             btn1Text: '🔄 Xoay Thuận',
