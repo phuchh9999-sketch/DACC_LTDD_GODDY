@@ -128,5 +128,54 @@ class ChallengeRoom {
       winnerId: winnerId ?? this.winnerId,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'roomCode': roomCode,
+    'hostId': hostId,
+    'hostName': hostName,
+    'hostAvatar': hostAvatar,
+    'guestId': guestId,
+    'guestName': guestName,
+    'guestAvatar': guestAvatar,
+    'gameType': gameType.name,
+    'difficulty': difficulty,
+    'seed': seed,
+    'status': status.name,
+    'hostReady': hostReady,
+    'guestReady': guestReady,
+    'hostScore': hostScore,
+    'guestScore': guestScore,
+    'hostResult': hostResult?.toJson(),
+    'guestResult': guestResult?.toJson(),
+    'winnerId': winnerId,
+  };
+
+  factory ChallengeRoom.fromJson(Map<String, dynamic> json) => ChallengeRoom(
+    roomCode: json['roomCode'] as String? ?? '',
+    hostId: json['hostId'] as String? ?? '',
+    hostName: json['hostName'] as String? ?? '',
+    hostAvatar: json['hostAvatar'] as String? ?? '⚡',
+    guestId: json['guestId'] as String?,
+    guestName: json['guestName'] as String?,
+    guestAvatar: json['guestAvatar'] as String?,
+    gameType: GameType.values.firstWhere(
+      (e) => e.name == json['gameType'],
+      orElse: () => GameType.caro,
+    ),
+    difficulty: json['difficulty'] as String? ?? 'Normal',
+    seed: json['seed'] as int? ?? 4242,
+    status: RoomStatus.values.firstWhere(
+      (e) => e.name == json['status'],
+      orElse: () => RoomStatus.waiting,
+    ),
+    hostReady: json['hostReady'] as bool? ?? false,
+    guestReady: json['guestReady'] as bool? ?? false,
+    hostScore: json['hostScore'] as int? ?? 0,
+    guestScore: json['guestScore'] as int? ?? 0,
+    hostResult: json['hostResult'] != null ? PlayerDuelResult.fromJson(json['hostResult'] as Map<String, dynamic>) : null,
+    guestResult: json['guestResult'] != null ? PlayerDuelResult.fromJson(json['guestResult'] as Map<String, dynamic>) : null,
+    winnerId: json['winnerId'] as String?,
+  );
 }
+
 

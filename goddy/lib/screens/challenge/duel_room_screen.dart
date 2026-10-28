@@ -13,21 +13,32 @@ import '../games/caro/caro_screen.dart';
 import '../games/sudoku/sudoku_screen.dart';
 import '../games/slide_puzzle/slide_puzzle_screen.dart';
 
-class DuelRoomScreen extends StatelessWidget {
+class DuelRoomScreen extends StatefulWidget {
   final String roomCode;
 
   const DuelRoomScreen({super.key, required this.roomCode});
 
-  void _launchGame(BuildContext context, GameType gameType) {
+  @override
+  State<DuelRoomScreen> createState() => _DuelRoomScreenState();
+}
+
+class _DuelRoomScreenState extends State<DuelRoomScreen> {
+  bool _hasLaunchedGame = false;
+
+  Future<void> _launchGame(BuildContext context, GameType gameType) async {
+    final challenge = context.read<ChallengeService>();
+    final room = challenge.currentRoom;
+    final seed = room?.seed ?? 4242;
+
     Widget screen;
     switch (gameType) {
       case GameType.rubik:
         screen = RubikScreen(
+          duelSeed: seed,
           onDuelFinish: (seconds, moves) {
             final auth = context.read<AuthService>();
             final myUser = auth.currentUser;
             if (myUser != null) {
-              final challenge = context.read<ChallengeService>();
               challenge.submitResult(
                 userId: myUser.id,
                 username: myUser.username,
@@ -50,7 +61,12 @@ class DuelRoomScreen extends StatelessWidget {
         break;
     }
 
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    if (mounted) {
+      setState(() {
+        _hasLaunchedGame = false;
+      });
+    }
   }
 
   void _showFriendsInviteSheet(BuildContext context, ChallengeService challenge) {
@@ -153,6 +169,14 @@ class DuelRoomScreen extends StatelessWidget {
     final challenge = context.watch<ChallengeService>();
     final room = challenge.currentRoom;
 
+    // Auto-launch match when both are ready and status changes to playing on any phone
+    if (room != null && room.status == RoomStatus.playing && !_hasLaunchedGame) {
+      _hasLaunchedGame = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _launchGame(context, room.gameType);
+      });
+    }
+
     if (room == null) {
       return Scaffold(
         backgroundColor: GoddyTheme.bgDark,
@@ -172,431 +196,445 @@ class DuelRoomScreen extends StatelessWidget {
       );
     }
 
-    return Scaffold(
-      backgroundColor: GoddyTheme.bgDark,
-      appBar: AppBar(
-        title: Text(
-          'PHÒNG TRANH TÀI: $roomCode',
-          style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Sao chép mã phòng',
-            icon: const Icon(Icons.copy, color: GoddyTheme.neonCyan),
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: roomCode));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Đã sao chép mã phòng!')),
-              );
-            },
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          challenge.leaveRoom();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: GoddyTheme.bgDark,
+        appBar: AppBar(
+          title: Text(
+            'PHÒNG TRANH TÀI: ${widget.roomCode}',
+            style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          children: [
-            // Game Tag
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: GoddyTheme.neonCyan.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: GoddyTheme.neonCyan, width: 1),
-              ),
-              child: Text(
-                'MÔN THI ĐẤU: ${room.gameType.title.toUpperCase()}',
-                style: const TextStyle(color: GoddyTheme.neonCyan, fontWeight: FontWeight.bold, fontSize: 12),
-              ),
+          actions: [
+            IconButton(
+              tooltip: 'Sao chép mã phòng',
+              icon: const Icon(Icons.copy, color: GoddyTheme.neonCyan),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: widget.roomCode));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Đã sao chép mã phòng!')),
+                );
+              },
             ),
-
-            const SizedBox(height: 16),
-
-            // Duel Matchup Banner (Host vs Guest)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: GoddyTheme.glowBox(
-                borderColor: room.bothReady ? GoddyTheme.neonGreen : GoddyTheme.neonMagenta,
-                bgColor: GoddyTheme.bgCard,
-                radius: 18,
+          ],
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            children: [
+              // Game Tag
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: GoddyTheme.neonCyan.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: GoddyTheme.neonCyan, width: 1),
+                ),
+                child: Text(
+                  'MÔN THI ĐẤU: ${room.gameType.title.toUpperCase()}',
+                  style: const TextStyle(color: GoddyTheme.neonCyan, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      // Host Card
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: GoddyTheme.neonCyan.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: GoddyTheme.neonCyan, width: 1.5),
-                              ),
-                              child: Center(child: Text(room.hostAvatar, style: const TextStyle(fontSize: 32))),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              room.hostName,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const Text('Chủ Phòng (Player 1)', style: TextStyle(color: GoddyTheme.neonCyan, fontSize: 10)),
-                            const SizedBox(height: 4),
-                            // Score display
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white10,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                'ĐIỂM: ${room.hostScore}',
-                                style: const TextStyle(color: GoddyTheme.neonAmber, fontWeight: FontWeight.bold, fontSize: 11),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            // Host Ready Badge
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: room.hostReady ? GoddyTheme.neonGreen.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: room.hostReady ? GoddyTheme.neonGreen : Colors.red, width: 1),
-                              ),
-                              child: Text(
-                                room.hostReady ? '✅ ĐÃ SẴN SÀNG' : '⏳ CHƯA SẴN SÀNG',
-                                style: TextStyle(
-                                  color: room.hostReady ? GoddyTheme.neonGreen : Colors.redAccent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+
+              const SizedBox(height: 16),
+
+              // Duel Matchup Banner (Host vs Guest)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: GoddyTheme.glowBox(
+                  borderColor: room.bothReady ? GoddyTheme.neonGreen : GoddyTheme.neonMagenta,
+                  bgColor: GoddyTheme.bgCard,
+                  radius: 18,
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        // Host Card
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: GoddyTheme.neonCyan.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: GoddyTheme.neonCyan, width: 1.5),
                                 ),
+                                child: Center(child: Text(room.hostAvatar, style: const TextStyle(fontSize: 32))),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            SizedBox(
-                              height: 32,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: room.hostReady ? Colors.white12 : GoddyTheme.neonCyan,
-                                  foregroundColor: room.hostReady ? Colors.white70 : Colors.black,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                              const SizedBox(height: 6),
+                              Text(
+                                room.hostName,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const Text('Chủ Phòng (Player 1)', style: TextStyle(color: GoddyTheme.neonCyan, fontSize: 10)),
+                              const SizedBox(height: 4),
+                              // Score display
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white10,
+                                  borderRadius: BorderRadius.circular(6),
                                 ),
-                                onPressed: () => challenge.toggleHostReady(),
                                 child: Text(
-                                  room.hostReady ? 'Hủy Sẵn Sàng' : 'Bấm Sẵn Sàng',
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                  'ĐIỂM: ${room.hostScore}',
+                                  style: const TextStyle(color: GoddyTheme.neonAmber, fontWeight: FontWeight.bold, fontSize: 11),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // VS Badge
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          'VS',
-                          style: GoogleFonts.orbitron(
-                            color: GoddyTheme.neonMagenta,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(color: GoddyTheme.neonMagenta.withValues(alpha: 0.8), blurRadius: 10),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Guest Card
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: room.isFull ? GoddyTheme.neonAmber.withValues(alpha: 0.2) : Colors.white10,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: room.isFull ? GoddyTheme.neonAmber : Colors.white24,
-                                  width: 1.5,
+                              const SizedBox(height: 6),
+                              // Host Ready Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: room.hostReady ? GoddyTheme.neonGreen.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: room.hostReady ? GoddyTheme.neonGreen : Colors.red, width: 1),
+                                ),
+                                child: Text(
+                                  room.hostReady ? '✅ ĐÃ SẴN SÀNG' : '⏳ CHƯA SẴN SÀNG',
+                                  style: TextStyle(
+                                    color: room.hostReady ? GoddyTheme.neonGreen : Colors.redAccent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                              child: Center(
-                                child: Text(room.guestAvatar ?? '❓', style: const TextStyle(fontSize: 32)),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              room.guestName ?? 'Đang chờ...',
-                              style: TextStyle(
-                                color: room.isFull ? Colors.white : GoddyTheme.textMuted,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              room.isFull ? 'Đối Thủ (Player 2)' : 'Chưa vào',
-                              style: TextStyle(
-                                color: room.isFull ? GoddyTheme.neonAmber : GoddyTheme.textMuted,
-                                fontSize: 10,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            // Score display
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white10,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                'ĐIỂM: ${room.guestScore}',
-                                style: const TextStyle(color: GoddyTheme.neonAmber, fontWeight: FontWeight.bold, fontSize: 11),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            // Guest Ready Badge
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: room.guestReady ? GoddyTheme.neonGreen.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: room.guestReady ? GoddyTheme.neonGreen : Colors.red, width: 1),
-                              ),
-                              child: Text(
-                                !room.isFull
-                                    ? '⏳ ĐANG CHỜ VÀO'
-                                    : (room.guestReady ? '✅ ĐÃ SẴN SÀNG' : '⏳ CHƯA SẴN SÀNG'),
-                                style: TextStyle(
-                                  color: room.guestReady ? GoddyTheme.neonGreen : Colors.redAccent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            if (room.isFull)
+                              const SizedBox(height: 6),
                               SizedBox(
                                 height: 32,
                                 child: ElevatedButton(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: room.guestReady ? Colors.white12 : GoddyTheme.neonAmber,
-                                    foregroundColor: room.guestReady ? Colors.white70 : Colors.black,
+                                    backgroundColor: room.hostReady ? Colors.white12 : GoddyTheme.neonCyan,
+                                    foregroundColor: room.hostReady ? Colors.white70 : Colors.black,
                                     padding: const EdgeInsets.symmetric(horizontal: 8),
                                   ),
-                                  onPressed: () => challenge.toggleGuestReady(),
+                                  onPressed: () => challenge.toggleHostReady(),
                                   child: Text(
-                                    room.guestReady ? 'Hủy Sẵn Sàng' : 'Bấm Sẵn Sàng',
+                                    room.hostReady ? 'Hủy Sẵn Sàng' : 'Bấm Sẵn Sàng',
                                     style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                              )
-                            else
-                              const SizedBox(height: 32),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
 
-                  const SizedBox(height: 14),
+                        // VS Badge
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            'VS',
+                            style: GoogleFonts.orbitron(
+                              color: GoddyTheme.neonMagenta,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(color: GoddyTheme.neonMagenta.withValues(alpha: 0.8), blurRadius: 10),
+                              ],
+                            ),
+                          ),
+                        ),
 
-                  // Ready Check Banner
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: room.bothReady
-                          ? GoddyTheme.neonGreen.withValues(alpha: 0.15)
-                          : GoddyTheme.neonAmber.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: room.bothReady ? GoddyTheme.neonGreen : GoddyTheme.neonAmber,
-                        width: 1,
-                      ),
-                    ),
-                    child: Text(
-                      room.bothReady
-                          ? '🔥 CẢ 2 ĐÃ SẴN SÀNG! ĐIỂM BẮT ĐẦU Ở 0 ĐIỂM!'
-                          : '⚠️ CHƯA THỂ BẮT ĐẦU: CẢ 2 NGƯỜI PHẢI BẤM "SẴN SÀNG" MỚI ĐƯỢC VÀO TRẬN!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: room.bothReady ? GoddyTheme.neonGreen : GoddyTheme.neonAmber,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Friend Invite & Bot Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E293B),
-                      foregroundColor: GoddyTheme.neonCyan,
-                      side: const BorderSide(color: GoddyTheme.neonCyan),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    icon: const Icon(Icons.person_add_alt_1, size: 18),
-                    label: const Text('Mời Bạn Bè', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    onPressed: () => _showFriendsInviteSheet(context, challenge),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (!room.isFull)
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: GoddyTheme.neonAmber),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      icon: const Icon(Icons.smart_toy_outlined, color: GoddyTheme.neonAmber, size: 18),
-                      label: const Text(
-                        'Triệu Hồi AI Bot',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                      onPressed: () => challenge.addAiChallenger(),
-                    ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // QR Code for Room PIN
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(color: GoddyTheme.neonCyan.withValues(alpha: 0.3), blurRadius: 16),
-                ],
-              ),
-              child: QrImageView(
-                data: 'goddy_duel://$roomCode',
-                version: QrVersions.auto,
-                size: 130.0,
-                backgroundColor: Colors.white,
-              ),
-            ),
-
-            const SizedBox(height: 6),
-
-            Text(
-              'Quét mã QR hoặc nhập PIN: $roomCode',
-              style: const TextStyle(color: GoddyTheme.textSecondary, fontSize: 12),
-            ),
-
-            if (room.status == RoomStatus.finished) ...[
-              Container(
-                margin: const EdgeInsets.symmetric(vertical: 14),
-                padding: const EdgeInsets.all(16),
-                decoration: GoddyTheme.glowBox(
-                  borderColor: GoddyTheme.neonGreen,
-                  bgColor: const Color(0xFF13202E),
-                  radius: 16,
-                ),
-                child: Column(
-                  children: [
-                    const Icon(Icons.emoji_events, color: GoddyTheme.neonAmber, size: 48),
-                    const SizedBox(height: 8),
-                    Text(
-                      'KẾT QUẢ TRANH TÀI',
-                      style: GoogleFonts.orbitron(color: GoddyTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '🏆 Người chiến thắng: ${room.winnerId == room.hostId ? room.hostName : (room.guestName ?? "Đối thủ")}',
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Text('${room.hostName}: ${room.hostResult?.timeSeconds ?? 0}s (${room.hostScore}đ)', style: const TextStyle(color: GoddyTheme.neonCyan, fontWeight: FontWeight.bold)),
-                        Text('${room.guestName}: ${room.guestResult?.timeSeconds ?? 0}s (${room.guestScore}đ)', style: const TextStyle(color: GoddyTheme.neonAmber, fontWeight: FontWeight.bold)),
+                        // Guest Card
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  color: room.isFull ? GoddyTheme.neonAmber.withValues(alpha: 0.2) : Colors.white10,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: room.isFull ? GoddyTheme.neonAmber : Colors.white24,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(room.guestAvatar ?? '❓', style: const TextStyle(fontSize: 32)),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                room.guestName ?? 'Đang chờ...',
+                                style: TextStyle(
+                                  color: room.isFull ? Colors.white : GoddyTheme.textMuted,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                room.isFull ? 'Đối Thủ (Player 2)' : 'Chưa vào',
+                                style: TextStyle(
+                                  color: room.isFull ? GoddyTheme.neonAmber : GoddyTheme.textMuted,
+                                  fontSize: 10,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              // Score display
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.white10,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'ĐIỂM: ${room.guestScore}',
+                                  style: const TextStyle(color: GoddyTheme.neonAmber, fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              // Guest Ready Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: room.guestReady ? GoddyTheme.neonGreen.withValues(alpha: 0.2) : Colors.red.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: room.guestReady ? GoddyTheme.neonGreen : Colors.red, width: 1),
+                                ),
+                                child: Text(
+                                  !room.isFull
+                                      ? '⏳ ĐANG CHỜ VÀO'
+                                      : (room.guestReady ? '✅ ĐÃ SẴN SÀNG' : '⏳ CHƯA SẴN SÀNG'),
+                                  style: TextStyle(
+                                    color: room.guestReady ? GoddyTheme.neonGreen : Colors.redAccent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              if (room.isFull)
+                                SizedBox(
+                                  height: 32,
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: room.guestReady ? Colors.white12 : GoddyTheme.neonAmber,
+                                      foregroundColor: room.guestReady ? Colors.white70 : Colors.black,
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    ),
+                                    onPressed: () => challenge.toggleGuestReady(),
+                                    child: Text(
+                                      room.guestReady ? 'Hủy Sẵn Sàng' : 'Bấm Sẵn Sàng',
+                                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                )
+                              else
+                                const SizedBox(height: 32),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Tiêu chí: Người hoàn thành ít giây hơn hoặc điểm cao hơn sẽ chiến thắng!',
-                      style: TextStyle(color: GoddyTheme.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
+
+                    const SizedBox(height: 14),
+
+                    // Ready Check Banner
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: room.bothReady
+                            ? GoddyTheme.neonGreen.withValues(alpha: 0.15)
+                            : GoddyTheme.neonAmber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: room.bothReady ? GoddyTheme.neonGreen : GoddyTheme.neonAmber,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        room.bothReady
+                            ? '🔥 CẢ 2 ĐÃ SẴN SÀNG! ĐIỂM BẮT ĐẦU Ở 0 ĐIỂM!'
+                            : '⚠️ CHƯA THỂ BẮT ĐẦU: CẢ 2 NGƯỜI PHẢI BẤM "SẴN SÀNG" MỚI ĐƯỢC VÀO TRẬN!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: room.bothReady ? GoddyTheme.neonGreen : GoddyTheme.neonAmber,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
 
-            const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
-            // Start Match Button (Only enabled when BOTH are ready)
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: room.bothReady ? GoddyTheme.neonGreen : Colors.white12,
-                  foregroundColor: room.bothReady ? Colors.black : Colors.white38,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  elevation: room.bothReady ? 6 : 0,
+              // Friend Invite & Bot Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E293B),
+                        foregroundColor: GoddyTheme.neonCyan,
+                        side: const BorderSide(color: GoddyTheme.neonCyan, width: 1),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      icon: const Icon(Icons.person_add, size: 16),
+                      label: const Text('Mời Bạn Bè', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                      onPressed: () => _showFriendsInviteSheet(context, challenge),
+                    ),
+                  ),
+                  if (!room.isFull) ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1E293B),
+                          foregroundColor: GoddyTheme.neonAmber,
+                          side: const BorderSide(color: GoddyTheme.neonAmber, width: 1),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        icon: const Icon(Icons.smart_toy, size: 16),
+                        label: const Text('Triệu Hồi AI Bot', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                        onPressed: () => challenge.addAiChallenger(),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Room Code & QR Code display for Host & Guest
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: GoddyTheme.bgCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white12),
                 ),
-                icon: Icon(
-                  room.bothReady ? Icons.play_arrow : Icons.lock_clock,
-                  size: 26,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: QrImageView(
+                        data: room.roomCode,
+                        version: QrVersions.auto,
+                        size: 150,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Quét mã QR hoặc nhập PIN: ${room.roomCode}',
+                      style: const TextStyle(color: GoddyTheme.textMuted, fontSize: 11),
+                    ),
+                  ],
                 ),
-                label: Text(
-                  room.status == RoomStatus.finished
-                      ? 'TÁI ĐẤU TRANH TÀI'
-                      : (room.bothReady
-                          ? 'BẮT ĐẦU TRANH TÀI (0 ĐIỂM)'
-                          : 'CHỜ CẢ 2 SẴN SÀNG...'),
-                  style: GoogleFonts.orbitron(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    letterSpacing: 0.8,
+              ),
+
+              if (room.status == RoomStatus.finished) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: GoddyTheme.glowBox(
+                    borderColor: GoddyTheme.neonGreen,
+                    bgColor: GoddyTheme.bgCard,
+                    radius: 14,
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.emoji_events, color: GoddyTheme.neonAmber, size: 48),
+                      const SizedBox(height: 8),
+                      Text(
+                        'KẾT QUẢ TRANH TÀI',
+                        style: GoogleFonts.orbitron(color: GoddyTheme.neonGreen, fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '🏆 Người chiến thắng: ${room.winnerId == room.hostId ? room.hostName : (room.guestName ?? "Đối thủ")}',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Text('${room.hostName}: ${room.hostResult?.timeSeconds ?? 0}s (${room.hostScore}đ)', style: const TextStyle(color: GoddyTheme.neonCyan, fontWeight: FontWeight.bold)),
+                          Text('${room.guestName}: ${room.guestResult?.timeSeconds ?? 0}s (${room.guestScore}đ)', style: const TextStyle(color: GoddyTheme.neonAmber, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Tiêu chí: Người hoàn thành ít giây hơn hoặc điểm cao hơn sẽ chiến thắng!',
+                        style: TextStyle(color: GoddyTheme.textMuted, fontSize: 11, fontStyle: FontStyle.italic),
+                      ),
+                    ],
                   ),
                 ),
-                onPressed: room.bothReady
-                    ? () {
-                        challenge.startMatch();
-                        _launchGame(context, room.gameType);
-                      }
-                    : () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('⚠️ Trận đấu chưa thể xảy ra! Cần cả 2 người chơi cùng bấm "SẴN SÀNG"!'),
-                            backgroundColor: GoddyTheme.neonRed,
-                          ),
-                        );
-                      },
-              ),
-            ),
+              ],
 
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 14),
+
+              // Start Match Button (Only enabled when BOTH are ready)
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: room.bothReady ? GoddyTheme.neonGreen : Colors.white12,
+                    foregroundColor: room.bothReady ? Colors.black : Colors.white38,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: room.bothReady ? 6 : 0,
+                  ),
+                  icon: Icon(
+                    room.bothReady ? Icons.play_arrow : Icons.lock_clock,
+                    size: 26,
+                  ),
+                  label: Text(
+                    room.status == RoomStatus.finished
+                        ? 'TÁI ĐẤU TRANH TÀI'
+                        : (room.bothReady
+                            ? 'BẮT ĐẦU TRANH TÀI (0 ĐIỂM)'
+                            : 'CHỜ CẢ 2 SẴN SÀNG...'),
+                    style: GoogleFonts.orbitron(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  onPressed: room.bothReady
+                      ? () {
+                          challenge.startMatch();
+                          _launchGame(context, room.gameType);
+                        }
+                      : () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('⚠️ Trận đấu chưa thể xảy ra! Cần cả 2 người chơi cùng bấm "SẴN SÀNG"!'),
+                              backgroundColor: GoddyTheme.neonRed,
+                            ),
+                          );
+                        },
+                ),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-

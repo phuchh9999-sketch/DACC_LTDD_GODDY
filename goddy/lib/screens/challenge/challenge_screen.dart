@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
@@ -18,6 +19,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
   final _pinController = TextEditingController();
   GameType _selectedGame = GameType.caro;
   final String _selectedDifficulty = 'Normal';
+  bool _isJoining = false;
 
   @override
   void dispose() {
@@ -44,11 +46,11 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
     );
   }
 
-  void _handleJoinRoom() {
-    final code = _pinController.text.trim();
+  Future<void> _handleJoinRoom([String? customCode]) async {
+    final code = (customCode ?? _pinController.text).trim().toUpperCase();
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập mã PIN phòng 6 ký tự!')),
+        const SnackBar(content: Text('Vui lòng nhập hoặc quét mã PIN phòng 6 ký tự!')),
       );
       return;
     }
@@ -59,17 +61,181 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
 
     if (user == null) return;
 
-    final success = challenge.joinRoom(roomCode: code, guest: user);
-    if (success) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => DuelRoomScreen(roomCode: code.toUpperCase())),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Phòng thách đấu đã đầy hoặc không tồn tại!')),
-      );
+    setState(() => _isJoining = true);
+
+    try {
+      final success = await challenge.joinRoom(roomCode: code, guest: user);
+      if (!mounted) return;
+      setState(() => _isJoining = false);
+
+      if (success) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => DuelRoomScreen(roomCode: code)),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Phòng thách đấu đã đầy hoặc không tồn tại!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isJoining = false);
     }
+  }
+
+  void _showQrScannerModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: GoddyTheme.bgDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        side: BorderSide(color: GoddyTheme.neonCyan, width: 1.5),
+      ),
+      builder: (ctx) {
+        final challenge = context.watch<ChallengeService>();
+        final openRooms = challenge.recentRoomCodes;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.qr_code_scanner, color: GoddyTheme.neonCyan, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    'QUÉT MÃ QR PHÒNG ĐẤU',
+                    style: GoogleFonts.orbitron(color: GoddyTheme.neonCyan, fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Hướng camera về mã QR trên máy chủ phòng hoặc dán mã PIN',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: GoddyTheme.textMuted, fontSize: 11),
+              ),
+              const SizedBox(height: 16),
+
+              // Cyberpunk Viewfinder Frame
+              Container(
+                width: 220,
+                height: 170,
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: GoddyTheme.neonCyan, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(color: GoddyTheme.neonCyan.withValues(alpha: 0.25), blurRadius: 15),
+                  ],
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(Icons.qr_code_2, size: 90, color: Colors.white24),
+                    // Animated scanning beam
+                    Positioned(
+                      top: 45,
+                      left: 12,
+                      right: 12,
+                      child: Container(
+                        height: 2.5,
+                        decoration: BoxDecoration(
+                          boxShadow: const [BoxShadow(color: GoddyTheme.neonCyan, blurRadius: 8)],
+                          color: GoddyTheme.neonCyan,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: GoddyTheme.bgDark.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: GoddyTheme.neonCyan.withValues(alpha: 0.4)),
+                        ),
+                        child: const Text(
+                          'SCANNER READY • ĐANG QUÉT',
+                          style: TextStyle(color: GoddyTheme.neonCyan, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Action: Paste from Clipboard
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: GoddyTheme.neonCyan,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.content_paste_rounded, size: 18),
+                  label: const Text('DÁN MÃ TỪ BỘ NHỚ TẠM (CLIPBOARD)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  onPressed: () async {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    final text = data?.text?.trim().toUpperCase() ?? '';
+                    if (!mounted) return;
+                    if (text.isNotEmpty) {
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      _pinController.text = text;
+                      _handleJoinRoom(text);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Bộ nhớ tạm trống! Hãy sao chép mã phòng từ chủ phòng trước.')),
+                      );
+                    }
+                  },
+                ),
+              ),
+
+              if (openRooms.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'PHÒNG VỪA MỞ TRÊN HỆ THỐNG:',
+                    style: GoogleFonts.orbitron(color: GoddyTheme.neonAmber, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  children: openRooms.map((code) => ActionChip(
+                    backgroundColor: const Color(0xFF1E293B),
+                    side: const BorderSide(color: GoddyTheme.neonAmber),
+                    avatar: const Icon(Icons.bolt, size: 14, color: GoddyTheme.neonAmber),
+                    label: Text(code, style: const TextStyle(color: GoddyTheme.neonAmber, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _pinController.text = code;
+                      _handleJoinRoom(code);
+                    },
+                  )).toList(),
+                ),
+              ],
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -185,7 +351,7 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
 
             const SizedBox(height: 24),
 
-            // Section 2: Join Room with PIN
+            // Section 2: Join Room with PIN or QR
             Text(
               'THAM GIA PHÒNG ĐẤU ĐÃ CÓ',
               style: GoogleFonts.orbitron(color: GoddyTheme.neonAmber, fontSize: 14, fontWeight: FontWeight.bold),
@@ -201,6 +367,41 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
               ),
               child: Column(
                 children: [
+                  // Prominent QR Scanner Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E293B),
+                        foregroundColor: GoddyTheme.neonCyan,
+                        side: const BorderSide(color: GoddyTheme.neonCyan, width: 1.2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.qr_code_scanner, color: GoddyTheme.neonCyan, size: 22),
+                      label: Text(
+                        'QUÉT MÃ QR PHÒNG ĐẤU',
+                        style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 12.5),
+                      ),
+                      onPressed: _showQrScannerModal,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: const [
+                      Expanded(child: Divider(color: Colors.white24)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text('HOẶC NHẬP PIN', style: TextStyle(color: GoddyTheme.textMuted, fontSize: 11)),
+                      ),
+                      Expanded(child: Divider(color: Colors.white24)),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
                   TextField(
                     controller: _pinController,
                     textCapitalization: TextCapitalization.characters,
@@ -211,12 +412,19 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                       letterSpacing: 4,
                     ),
                     textAlign: TextAlign.center,
-                    decoration: const InputDecoration(
-                      hintText: 'NHẬP MÃ PIN (VD: GD8899)',
-                      hintStyle: TextStyle(letterSpacing: 1, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'NHẬP MÃ PIN (VD: KGJAND)',
+                      hintStyle: const TextStyle(letterSpacing: 1, fontSize: 13),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.qr_code_scanner, color: GoddyTheme.neonCyan),
+                        tooltip: 'Quét mã QR',
+                        onPressed: _showQrScannerModal,
+                      ),
                     ),
                   ),
+
                   const SizedBox(height: 14),
+
                   SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -226,12 +434,18 @@ class _ChallengeScreenState extends State<ChallengeScreen> {
                         foregroundColor: Colors.black,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      icon: const Icon(Icons.login),
+                      icon: _isJoining
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                            )
+                          : const Icon(Icons.login),
                       label: Text(
-                        'VÀO PHÒNG TRANH TÀI',
+                        _isJoining ? 'ĐANG KẾT NỐI VÀO PHÒNG...' : 'VÀO PHÒNG TRANH TÀI',
                         style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
-                      onPressed: _handleJoinRoom,
+                      onPressed: _isJoining ? null : () => _handleJoinRoom(),
                     ),
                   ),
                 ],

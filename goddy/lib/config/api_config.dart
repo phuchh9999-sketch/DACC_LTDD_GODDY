@@ -62,6 +62,8 @@ class ApiConfig {
       list.add(_customBaseUrl!);
     }
     list.addAll(const [
+      'http://10.157.197.137:5271/api/',
+      'http://10.157.197.137:45455/api/',
       'http://10.0.2.2:5271/api/',
       'http://127.0.0.1:5271/api/',
       'http://localhost:5271/api/',

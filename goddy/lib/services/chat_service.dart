@@ -1,14 +1,21 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import '../models/chat_message.dart';
 import '../models/user_model.dart';
 import 'storage_service.dart';
 
 class ChatService extends ChangeNotifier {
   static const String _keyGlobalChat = 'goddy_global_chat_v1';
+  static const String _chatEndpoint = 'https://ntfy.sh/goddy_global_chat';
 
   final List<ChatMessage> _messages = [];
   List<ChatMessage> get messages => List.unmodifiable(_messages);
+
+  Timer? _chatSyncTimer;
+  bool _isDisposed = false;
 
   static const List<String> quickStickers = [
     '⚔️ Solo Caro không?',
@@ -23,6 +30,25 @@ class ChatService extends ChangeNotifier {
 
   ChatService() {
     _loadMessages();
+    _startChatSync();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _chatSyncTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startChatSync() {
+    _chatSyncTimer?.cancel();
+    _chatSyncTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!_isDisposed) {
+        _pollRemoteMessages();
+      }
+    });
+    // Immediate first poll
+    _pollRemoteMessages();
   }
 
   Future<void> _loadMessages() async {
@@ -76,6 +102,40 @@ class ChatService extends ChangeNotifier {
     await StorageService.setStringList(_keyGlobalChat, raw);
   }
 
+  Future<void> _pollRemoteMessages() async {
+    try {
+      final url = Uri.parse('$_chatEndpoint/json?poll=1&since=all');
+      final res = await http.get(url).timeout(const Duration(seconds: 3));
+      if (res.statusCode == 200 && !_isDisposed) {
+        final lines = res.body.split('\n');
+        bool hasNew = false;
+
+        for (final line in lines) {
+          final trimmed = line.trim();
+          if (trimmed.isEmpty) continue;
+          try {
+            final jsonLine = jsonDecode(trimmed);
+            if (jsonLine['event'] == 'message' && jsonLine['message'] != null) {
+              final rawMsg = jsonLine['message'];
+              final msgMap = jsonDecode(rawMsg);
+              final msg = ChatMessage.fromJson(msgMap);
+              if (!_messages.any((m) => m.id == msg.id)) {
+                _messages.add(msg);
+                hasNew = true;
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (hasNew && !_isDisposed) {
+          _messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+          await _saveMessages();
+          notifyListeners();
+        }
+      }
+    } catch (_) {}
+  }
+
   Future<void> sendMessage({
     required UserModel sender,
     required String text,
@@ -85,7 +145,7 @@ class ChatService extends ChangeNotifier {
     if (text.trim().isEmpty) return;
 
     final msg = ChatMessage(
-      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'msg_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}',
       roomId: roomId,
       senderId: sender.id,
       senderName: sender.username,
@@ -99,21 +159,15 @@ class ChatService extends ChangeNotifier {
     await _saveMessages();
     notifyListeners();
 
-    // Occasional simulated AI gamer reply
-    if (text.contains('?') || text.contains('Solo') || text.contains('Caro')) {
-      Future.delayed(const Duration(seconds: 2), () {
-        _messages.add(ChatMessage(
-          id: 'reply_${DateTime.now().millisecondsSinceEpoch}',
-          roomId: roomId,
-          senderId: 'rival_bot_chat',
-          senderName: 'QuantumGhost 👻',
-          senderAvatar: '👻',
-          text: 'Vào phòng thách đấu nhập mã PIN hoặc tạo phòng đi bạn ơi, mình nhận kèo ngay!',
-          timestamp: DateTime.now(),
-        ));
-        _saveMessages();
-        notifyListeners();
-      });
+    // Broadcast across all devices via cloud endpoint
+    try {
+      await http.post(
+        Uri.parse(_chatEndpoint),
+        headers: {'Title': 'Chat', 'Priority': '3'},
+        body: jsonEncode(msg.toJson()),
+      ).timeout(const Duration(seconds: 3));
+    } catch (e) {
+      debugPrint('Failed to broadcast chat: $e');
     }
   }
 

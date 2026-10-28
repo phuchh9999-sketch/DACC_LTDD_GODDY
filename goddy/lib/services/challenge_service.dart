@@ -1,15 +1,25 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import '../core/constants.dart';
 import '../models/challenge_room.dart';
 import '../models/user_model.dart';
 import '../models/friend_model.dart';
 
 class ChallengeService extends ChangeNotifier {
+  static const String _syncBaseUrl = 'https://ntfy.sh';
+
   ChallengeRoom? _currentRoom;
   ChallengeRoom? get currentRoom => _currentRoom;
 
   final Map<String, ChallengeRoom> _activeRooms = {};
+  final List<String> _recentRoomCodes = [];
+  List<String> get recentRoomCodes => List.unmodifiable(_recentRoomCodes);
+
+  Timer? _roomSyncTimer;
+  bool _isDisposed = false;
 
   // Friends list
   final List<FriendModel> _friends = [
@@ -20,6 +30,13 @@ class ChallengeService extends ChangeNotifier {
   ];
 
   List<FriendModel> get friends => List.unmodifiable(_friends);
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _roomSyncTimer?.cancel();
+    super.dispose();
+  }
 
   void addFriend(String username, {String avatar = '🎮', String rankTier = 'Đồng'}) {
     if (username.trim().isEmpty) return;
@@ -40,6 +57,92 @@ class ChallengeService extends ChangeNotifier {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final random = Random();
     return List.generate(6, (index) => chars[random.nextInt(chars.length)]).join();
+  }
+
+  // Broadcast current room state to network channel
+  Future<void> _broadcastRoom(ChallengeRoom room) async {
+    try {
+      final code = room.roomCode.toUpperCase();
+      final url = Uri.parse('$_syncBaseUrl/goddy_room_$code');
+      await http.post(
+        url,
+        headers: {'Title': 'DuelRoom', 'Priority': '3'},
+        body: jsonEncode(room.toJson()),
+      ).timeout(const Duration(seconds: 4));
+
+      // Also announce in global room directory so other devices can discover
+      if (room.status == RoomStatus.waiting || room.status == RoomStatus.ready) {
+        final dirUrl = Uri.parse('$_syncBaseUrl/goddy_active_rooms');
+        await http.post(
+          dirUrl,
+          headers: {'Title': 'ActiveRoom', 'Priority': '2'},
+          body: jsonEncode({
+            'code': code,
+            'hostName': room.hostName,
+            'hostAvatar': room.hostAvatar,
+            'gameType': room.gameType.name,
+            'status': room.status.name,
+            'time': DateTime.now().toIso8601String(),
+          }),
+        ).timeout(const Duration(seconds: 3));
+      }
+    } catch (e) {
+      debugPrint('Broadcast room error: $e');
+    }
+  }
+
+  // Fetch remote room state from network channel
+  Future<ChallengeRoom?> _fetchRemoteRoom(String roomCode) async {
+    try {
+      final code = roomCode.toUpperCase();
+      final url = Uri.parse('$_syncBaseUrl/goddy_room_$code/json?poll=1');
+      final res = await http.get(url).timeout(const Duration(seconds: 4));
+      if (res.statusCode == 200) {
+        final lines = res.body.split('\n');
+        for (int i = lines.length - 1; i >= 0; i--) {
+          final line = lines[i].trim();
+          if (line.isEmpty) continue;
+          try {
+            final jsonLine = jsonDecode(line);
+            if (jsonLine['event'] == 'message' && jsonLine['message'] != null) {
+              final map = jsonDecode(jsonLine['message']);
+              return ChallengeRoom.fromJson(map);
+            }
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      debugPrint('Fetch remote room error: $e');
+    }
+    return null;
+  }
+
+  void _startRoomSync(String roomCode) {
+    _roomSyncTimer?.cancel();
+    _roomSyncTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) async {
+      if (_isDisposed || _currentRoom == null || _currentRoom!.roomCode != roomCode) {
+        _roomSyncTimer?.cancel();
+        return;
+      }
+
+      final remote = await _fetchRemoteRoom(roomCode);
+      if (remote != null && _currentRoom != null && !_isDisposed) {
+        final hasChanges = remote.guestId != _currentRoom!.guestId ||
+            remote.guestName != _currentRoom!.guestName ||
+            remote.hostReady != _currentRoom!.hostReady ||
+            remote.guestReady != _currentRoom!.guestReady ||
+            remote.status != _currentRoom!.status ||
+            remote.hostScore != _currentRoom!.hostScore ||
+            remote.guestScore != _currentRoom!.guestScore ||
+            remote.winnerId != _currentRoom!.winnerId;
+
+        if (hasChanges) {
+          _currentRoom = remote;
+          _activeRooms[roomCode] = remote;
+          notifyListeners();
+        }
+      }
+    });
   }
 
   ChallengeRoom createRoom({
@@ -67,57 +170,77 @@ class ChallengeService extends ChangeNotifier {
 
     _activeRooms[code] = room;
     _currentRoom = room;
+    if (!_recentRoomCodes.contains(code)) {
+      _recentRoomCodes.insert(0, code);
+    }
     notifyListeners();
+
+    _broadcastRoom(room);
+    _startRoomSync(code);
     return room;
   }
 
-  bool joinRoom({
+  Future<bool> joinRoom({
     required String roomCode,
     required UserModel guest,
-  }) {
+  }) async {
     final code = roomCode.trim().toUpperCase();
-    if (!_activeRooms.containsKey(code)) {
-      // Create on-the-fly room for seamless testing if entered code doesn't exist yet
-      final room = ChallengeRoom(
-        roomCode: code,
-        hostId: 'host_auto',
-        hostName: 'CyberRival',
-        hostAvatar: '⚡',
+    if (code.isEmpty) return false;
+
+    // 1. Fetch live room from cloud network
+    ChallengeRoom? existing = await _fetchRemoteRoom(code);
+    existing ??= _activeRooms[code];
+
+    if (existing != null) {
+      if (existing.isFull && existing.guestId != guest.id) {
+        return false; // Room full
+      }
+
+      final updated = existing.copyWith(
         guestId: guest.id,
         guestName: guest.username,
         guestAvatar: guest.avatar,
-        gameType: GameType.caro,
-        seed: 4242,
         status: RoomStatus.ready,
-        hostReady: true,
         guestReady: false,
         hostScore: 0,
         guestScore: 0,
       );
-      _activeRooms[code] = room;
-      _currentRoom = room;
+
+      _activeRooms[code] = updated;
+      _currentRoom = updated;
+      if (!_recentRoomCodes.contains(code)) {
+        _recentRoomCodes.insert(0, code);
+      }
       notifyListeners();
+
+      await _broadcastRoom(updated);
+      _startRoomSync(code);
       return true;
     }
 
-    final existing = _activeRooms[code]!;
-    if (existing.isFull && existing.guestId != guest.id) {
-      return false; // Room full
-    }
-
-    final updated = existing.copyWith(
+    // 2. If room code not found anywhere on network, fallback to simulated room
+    final fallbackRoom = ChallengeRoom(
+      roomCode: code,
+      hostId: 'host_auto',
+      hostName: 'CyberRival',
+      hostAvatar: '⚡',
       guestId: guest.id,
       guestName: guest.username,
       guestAvatar: guest.avatar,
+      gameType: GameType.caro,
+      seed: 4242,
       status: RoomStatus.ready,
+      hostReady: true,
       guestReady: false,
       hostScore: 0,
       guestScore: 0,
     );
 
-    _activeRooms[code] = updated;
-    _currentRoom = updated;
+    _activeRooms[code] = fallbackRoom;
+    _currentRoom = fallbackRoom;
     notifyListeners();
+    _broadcastRoom(fallbackRoom);
+    _startRoomSync(code);
     return true;
   }
 
@@ -128,12 +251,13 @@ class ChallengeService extends ChangeNotifier {
       guestName: friend.username,
       guestAvatar: friend.avatar,
       status: RoomStatus.ready,
-      guestReady: false, // Must press ready!
+      guestReady: false,
       hostScore: 0,
       guestScore: 0,
     );
     _activeRooms[_currentRoom!.roomCode] = _currentRoom!;
     notifyListeners();
+    _broadcastRoom(_currentRoom!);
   }
 
   void addAiChallenger() {
@@ -147,12 +271,13 @@ class ChallengeService extends ChangeNotifier {
       guestName: botNames[idx],
       guestAvatar: botAvatars[idx],
       status: RoomStatus.ready,
-      guestReady: false, // Bot will be ready when toggled
+      guestReady: false,
       hostScore: 0,
       guestScore: 0,
     );
     _activeRooms[_currentRoom!.roomCode] = _currentRoom!;
     notifyListeners();
+    _broadcastRoom(_currentRoom!);
   }
 
   void toggleHostReady() {
@@ -161,6 +286,7 @@ class ChallengeService extends ChangeNotifier {
     _currentRoom = _currentRoom!.copyWith(hostReady: newReady);
     _activeRooms[_currentRoom!.roomCode] = _currentRoom!;
     notifyListeners();
+    _broadcastRoom(_currentRoom!);
   }
 
   void toggleGuestReady() {
@@ -169,6 +295,7 @@ class ChallengeService extends ChangeNotifier {
     _currentRoom = _currentRoom!.copyWith(guestReady: newReady);
     _activeRooms[_currentRoom!.roomCode] = _currentRoom!;
     notifyListeners();
+    _broadcastRoom(_currentRoom!);
   }
 
   bool canStartMatch() {
@@ -178,9 +305,8 @@ class ChallengeService extends ChangeNotifier {
 
   void startMatch() {
     if (_currentRoom == null) return;
-    if (!_currentRoom!.bothReady) return; // Both must be ready!
+    if (!_currentRoom!.bothReady) return;
 
-    // Both start at 0 score
     _currentRoom = _currentRoom!.copyWith(
       status: RoomStatus.playing,
       hostScore: 0,
@@ -188,6 +314,7 @@ class ChallengeService extends ChangeNotifier {
     );
     _activeRooms[_currentRoom!.roomCode] = _currentRoom!;
     notifyListeners();
+    _broadcastRoom(_currentRoom!);
   }
 
   void submitResult({
@@ -208,13 +335,11 @@ class ChallengeService extends ChangeNotifier {
       isCompleted: true,
     );
 
-    // If opponent is bot or hasn't finished, generate simulated realistic opponent score
-    PlayerDuelResult opponentResult;
     if (_currentRoom!.hostId == userId) {
       final simTime = timeSeconds + Random().nextInt(15) - 5;
       final simMistakes = (mistakes + Random().nextInt(2) - 1).clamp(0, 5);
       final simScore = (score + (Random().nextBool() ? -80 : 60)).clamp(100, 3000);
-      opponentResult = PlayerDuelResult(
+      final opponentResult = PlayerDuelResult(
         userId: _currentRoom!.guestId ?? 'rival',
         username: _currentRoom!.guestName ?? 'Opponent',
         timeSeconds: simTime < 5 ? 5 : simTime,
@@ -244,11 +369,12 @@ class ChallengeService extends ChangeNotifier {
 
     _activeRooms[_currentRoom!.roomCode] = _currentRoom!;
     notifyListeners();
+    _broadcastRoom(_currentRoom!);
   }
 
   void leaveRoom() {
+    _roomSyncTimer?.cancel();
     _currentRoom = null;
     notifyListeners();
   }
 }
-
