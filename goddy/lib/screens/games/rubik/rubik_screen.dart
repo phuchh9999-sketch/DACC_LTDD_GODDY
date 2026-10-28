@@ -44,6 +44,12 @@ class _RubikScreenState extends State<RubikScreen> {
   void initState() {
     super.initState();
     _solverSteps = RubikSolverAi.generateSolutionSteps([]);
+    if (widget.onDuelFinish != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleScramble();
+        _startStopwatch();
+      });
+    }
   }
 
   @override
@@ -259,7 +265,7 @@ class _RubikScreenState extends State<RubikScreen> {
       backgroundColor: GoddyTheme.bgDark,
       appBar: AppBar(
         title: Text(
-          'GIẢ LẬP RUBIK 3D',
+          widget.onDuelFinish != null ? '⚔️ RUBIK 3D THÁCH ĐẤU' : 'GIẢ LẬP RUBIK 3D',
           style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
@@ -333,10 +339,31 @@ class _RubikScreenState extends State<RubikScreen> {
                 onMoveExecuted: _onMoveExecuted,
               ),
 
-              const Text(
-                'Vuốt màn hình để xoay góc nhìn 3D 360° xung quanh khối',
-                style: TextStyle(color: GoddyTheme.textMuted, fontSize: 11),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'Vuốt xoay 360° tự do',
+                    style: TextStyle(color: GoddyTheme.textMuted, fontSize: 11),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.refresh, size: 14, color: GoddyTheme.neonCyan),
+                    label: const Text('Góc Nhìn Chuẩn', style: TextStyle(color: GoddyTheme.neonCyan, fontSize: 11)),
+                    onPressed: () => _cubeKey.currentState?.resetCameraView(),
+                  ),
+                ],
               ),
+
+              const SizedBox(height: 10),
+
+              // Sơ đồ 6 Mặt phẳng trải rộng (2D Net)
+              _buildSixFacesNet(),
 
               const SizedBox(height: 12),
 
@@ -485,10 +512,10 @@ class _RubikScreenState extends State<RubikScreen> {
             title: 'Hàng Ngang Trên (Top):',
             btn1Icon: Icons.arrow_back_rounded,
             btn1Text: 'Ngang Trái',
-            btn1Move: 'U',
+            btn1Move: "U'",
             btn2Icon: Icons.arrow_forward_rounded,
             btn2Text: 'Ngang Phải',
-            btn2Move: "U'",
+            btn2Move: 'U',
           ),
           const SizedBox(height: 8),
 
@@ -497,10 +524,10 @@ class _RubikScreenState extends State<RubikScreen> {
             title: 'Hàng Ngang Giữa (Equator):',
             btn1Icon: Icons.arrow_back_rounded,
             btn1Text: 'Ngang Trái',
-            btn1Move: "E'",
+            btn1Move: 'E',
             btn2Icon: Icons.arrow_forward_rounded,
             btn2Text: 'Ngang Phải',
-            btn2Move: 'E',
+            btn2Move: "E'",
           ),
           const SizedBox(height: 8),
 
@@ -509,10 +536,10 @@ class _RubikScreenState extends State<RubikScreen> {
             title: 'Hàng Ngang Dưới (Bottom):',
             btn1Icon: Icons.arrow_back_rounded,
             btn1Text: 'Ngang Trái',
-            btn1Move: "D'",
+            btn1Move: 'D',
             btn2Icon: Icons.arrow_forward_rounded,
             btn2Text: 'Ngang Phải',
-            btn2Move: 'D',
+            btn2Move: "D'",
           ),
           const SizedBox(height: 8),
 
@@ -738,6 +765,128 @@ class _RubikScreenState extends State<RubikScreen> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSixFacesNet() {
+    final faces = _cubeKey.currentState?.faces ?? [
+      List.filled(9, RubikCubeWidgetState.cWhite),
+      List.filled(9, RubikCubeWidgetState.cYellow),
+      List.filled(9, RubikCubeWidgetState.cGreen),
+      List.filled(9, RubikCubeWidgetState.cBlue),
+      List.filled(9, RubikCubeWidgetState.cRed),
+      List.filled(9, RubikCubeWidgetState.cOrange),
+    ];
+
+    Widget buildMiniFace(int faceIndex, String label) {
+      final faceColors = faces[faceIndex];
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: Colors.white24, width: 0.8),
+            ),
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                padding: EdgeInsets.zero,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 1.5,
+                  mainAxisSpacing: 1.5,
+                ),
+                itemCount: 9,
+                itemBuilder: (context, idx) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: faceColors[idx],
+                      borderRadius: BorderRadius.circular(1.5),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: GoddyTheme.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: GoddyTheme.neonCyan.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.grid_view_rounded, size: 14, color: GoddyTheme.neonCyan),
+              const SizedBox(width: 6),
+              Text(
+                'SƠ ĐỒ TRẢI PHẲNG ĐỦ 6 MẶT (CUBE NET):',
+                style: GoogleFonts.orbitron(
+                  color: GoddyTheme.neonCyan,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Row 1: Up (White)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(width: 38),
+              buildMiniFace(0, 'U - Trắng'),
+              const SizedBox(width: 38 * 2),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Row 2: Left (Orange), Front (Green), Right (Red), Back (Blue)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              buildMiniFace(5, 'L - Cam'),
+              const SizedBox(width: 6),
+              buildMiniFace(2, 'F - Xanh Lá'),
+              const SizedBox(width: 6),
+              buildMiniFace(4, 'R - Đỏ'),
+              const SizedBox(width: 6),
+              buildMiniFace(3, 'B - Xanh Dương'),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Row 3: Down (Yellow)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(width: 38),
+              buildMiniFace(1, 'D - Vàng'),
+              const SizedBox(width: 38 * 2),
+            ],
+          ),
         ],
       ),
     );

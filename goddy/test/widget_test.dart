@@ -113,7 +113,7 @@ void main() {
 
       // Reset restores pure base state
       cubeKey.currentState?.resetCube();
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(cubeKey.currentState?.isSolved(), isTrue);
     });
 

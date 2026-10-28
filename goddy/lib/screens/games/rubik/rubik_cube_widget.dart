@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
@@ -22,6 +23,7 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
   double _rotY = 0.65;
 
   late AnimationController _turnController;
+  Timer? _activeMoveTimer;
   String _activeMove = '';
 
   // 6 faces: 0=Up(White), 1=Down(Yellow), 2=Front(Green), 3=Back(Blue), 4=Right(Red), 5=Left(Orange)
@@ -47,6 +49,7 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
 
   @override
   void dispose() {
+    _activeMoveTimer?.cancel();
     _turnController.dispose();
     super.dispose();
   }
@@ -61,6 +64,15 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
         List.filled(9, cRed),    // 4 Right
         List.filled(9, cOrange), // 5 Left
       ];
+    });
+  }
+
+  List<List<Color>> get faces => _faces;
+
+  void resetCameraView() {
+    setState(() {
+      _rotX = -0.55;
+      _rotY = 0.65;
     });
   }
 
@@ -84,21 +96,20 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
   }
 
   void executeMove(String move, {bool animate = true}) {
-    if (animate) {
-      _activeMove = move;
-      _turnController.forward(from: 0.0).then((_) {
-        _applyMoveLogic(move);
-        _turnController.reset();
-        _activeMove = '';
-        widget.onMoveExecuted?.call();
-        widget.onMoveName?.call(move);
-        setState(() {});
-      });
-    } else {
-      _applyMoveLogic(move);
-      widget.onMoveExecuted?.call();
-      setState(() {});
-    }
+    _activeMove = move;
+    _applyMoveLogic(move);
+    widget.onMoveExecuted?.call();
+    widget.onMoveName?.call(move);
+    setState(() {});
+
+    _activeMoveTimer?.cancel();
+    _activeMoveTimer = Timer(const Duration(milliseconds: 200), () {
+      if (mounted && _activeMove == move) {
+        setState(() {
+          _activeMove = '';
+        });
+      }
+    });
   }
 
   void _applyMoveLogic(String move) {
@@ -106,29 +117,29 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
       // Hàng ngang trên (Top Layer)
       case 'U':
         _rotateFaceClockwise(0);
-        _cycleEdges([2, 4, 3, 5], [0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]);
+        _cycleEdges([2, 5, 3, 4], [0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]);
         break;
       case "U'":
         _rotateFaceCounterClockwise(0);
-        _cycleEdges([5, 3, 4, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]);
+        _cycleEdges([2, 4, 3, 5], [0, 1, 2], [0, 1, 2], [0, 1, 2], [0, 1, 2]);
         break;
 
       // Hàng ngang giữa (Equator Layer)
       case 'E':
-        _cycleEdges([2, 5, 3, 4], [3, 4, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5]);
+        _cycleEdges([2, 4, 3, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5]);
         break;
       case "E'":
-        _cycleEdges([2, 4, 3, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5]);
+        _cycleEdges([2, 5, 3, 4], [3, 4, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5]);
         break;
 
       // Hàng ngang dưới (Bottom Layer)
       case 'D':
         _rotateFaceClockwise(1);
-        _cycleEdges([2, 5, 3, 4], [6, 7, 8], [6, 7, 8], [6, 7, 8], [6, 7, 8]);
+        _cycleEdges([2, 4, 3, 5], [6, 7, 8], [6, 7, 8], [6, 7, 8], [6, 7, 8]);
         break;
       case "D'":
         _rotateFaceCounterClockwise(1);
-        _cycleEdges([4, 3, 5, 2], [6, 7, 8], [6, 7, 8], [6, 7, 8], [6, 7, 8]);
+        _cycleEdges([2, 5, 3, 4], [6, 7, 8], [6, 7, 8], [6, 7, 8], [6, 7, 8]);
         break;
 
       // Cột dọc phải (Right Column)
@@ -232,7 +243,6 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
         setState(() {
           _rotY += details.delta.dx * 0.015;
           _rotX -= details.delta.dy * 0.015;
-          _rotX = _rotX.clamp(-1.45, 1.45);
         });
       },
       child: Center(
@@ -459,9 +469,14 @@ class _RealisticRubik3dPainter extends CustomPainter {
       final cBR = _transform(fCenter + uAxis * L + vAxis * L).project(center, fov);
       final cBL = _transform(fCenter - uAxis * L + vAxis * L).project(center, fov);
 
-      final faceBaseQuad = _buildRoundedQuad([cTL, cTR, cBR, cBL], 0.05);
-      canvas.drawPath(faceBaseQuad, blackBodyPaint);
-      canvas.drawPath(faceBaseQuad, outerChamferPaint);
+      final faceBasePath = Path()
+        ..moveTo(cTL.dx, cTL.dy)
+        ..lineTo(cTR.dx, cTR.dy)
+        ..lineTo(cBR.dx, cBR.dy)
+        ..lineTo(cBL.dx, cBL.dy)
+        ..close();
+      canvas.drawPath(faceBasePath, blackBodyPaint);
+      canvas.drawPath(faceBasePath, outerChamferPaint);
 
       // 2. Draw 9 Rounded Chamfered Stickers (3x3 grid)
       const double step = (2 * L) / 3.0;
@@ -485,10 +500,10 @@ class _RealisticRubik3dPainter extends CustomPainter {
           // Build realistic rounded corner sticker polygon in 3D perspective
           final stickerPath = _buildRoundedQuad([p0, p1, p2, p3], 0.16);
 
-          // Realistic 3D shading
-          final brightness = 0.76 + 0.24 * vf.diffuse;
+          // Realistic 3D shading with 100% full opacity (alpha = 255)
+          final brightness = (0.78 + 0.22 * vf.diffuse).clamp(0.0, 1.0);
           final baseShaded = Color.fromARGB(
-            color.a.toInt(),
+            255,
             (color.r * 255 * brightness).clamp(0, 255).toInt(),
             (color.g * 255 * brightness).clamp(0, 255).toInt(),
             (color.b * 255 * brightness).clamp(0, 255).toInt(),
