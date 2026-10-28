@@ -6,11 +6,13 @@ import '../../../core/theme.dart';
 class RubikCubeWidget extends StatefulWidget {
   final VoidCallback? onMoveExecuted;
   final Function(String move)? onMoveName;
+  final double size;
 
   const RubikCubeWidget({
     super.key,
     this.onMoveExecuted,
     this.onMoveName,
+    this.size = 210.0,
   });
 
   @override
@@ -247,40 +249,41 @@ class RubikCubeWidgetState extends State<RubikCubeWidget> with SingleTickerProvi
       },
       child: Center(
         child: SizedBox(
-          width: 280,
-          height: 280,
+          width: widget.size,
+          height: widget.size,
           child: Stack(
             alignment: Alignment.center,
             children: [
               // Ultra-Realistic 3D Solid Rubik Cube Canvas
               CustomPaint(
-                size: const Size(280, 280),
+                size: Size(widget.size, widget.size),
                 painter: _RealisticRubik3dPainter(
                   rotX: _rotX,
                   rotY: _rotY,
                   faces: _faces,
+                  cubeSize: widget.size,
                 ),
               ),
 
               // Active move indicator badge
               if (_activeMove.isNotEmpty)
                 Positioned(
-                  top: 6,
-                  right: 6,
+                  top: 2,
+                  right: 2,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: GoddyTheme.glowBox(
                       borderColor: GoddyTheme.neonCyan,
                       bgColor: GoddyTheme.bgDark.withValues(alpha: 0.9),
-                      radius: 10,
+                      radius: 8,
                     ),
                     child: Text(
                       'XOAY: $_activeMove',
                       style: const TextStyle(
                         color: GoddyTheme.neonCyan,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        letterSpacing: 1.2,
+                        fontSize: 11,
+                        letterSpacing: 1.1,
                       ),
                     ),
                   ),
@@ -340,16 +343,19 @@ class _RealisticRubik3dPainter extends CustomPainter {
   final double rotX;
   final double rotY;
   final List<List<Color>> faces;
+  final double cubeSize;
 
-  static const double L = 72.0; // Half cube size (total cube width = 144px)
-  static const double fov = 460.0;
   static const _Vector3d lightDir = _Vector3d(-0.4, -0.6, 0.69);
 
   const _RealisticRubik3dPainter({
     required this.rotX,
     required this.rotY,
     required this.faces,
+    this.cubeSize = 210.0,
   });
+
+  double get L => cubeSize * (72.0 / 280.0);
+  double get fov => cubeSize * (460.0 / 280.0);
 
   _Vector3d _transform(_Vector3d v) {
     return v.rotateY(rotY).rotateX(rotX);
@@ -479,8 +485,8 @@ class _RealisticRubik3dPainter extends CustomPainter {
       canvas.drawPath(faceBasePath, outerChamferPaint);
 
       // 2. Draw 9 Rounded Chamfered Stickers (3x3 grid)
-      const double step = (2 * L) / 3.0;
-      const double pad = 3.2; // Deep black groove between cubelets
+      final double step = (2 * L) / 3.0;
+      final double pad = 3.2 * (cubeSize / 280.0); // Deep black groove between cubelets
 
       for (int row = 0; row < 3; row++) {
         for (int col = 0; col < 3; col++) {
@@ -557,6 +563,9 @@ class _RealisticRubik3dPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RealisticRubik3dPainter oldDelegate) {
-    return oldDelegate.rotX != rotX || oldDelegate.rotY != rotY || oldDelegate.faces != faces;
+    return oldDelegate.rotX != rotX ||
+        oldDelegate.rotY != rotY ||
+        oldDelegate.faces != faces ||
+        oldDelegate.cubeSize != cubeSize;
   }
 }

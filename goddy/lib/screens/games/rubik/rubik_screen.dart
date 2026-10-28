@@ -35,8 +35,7 @@ class _RubikScreenState extends State<RubikScreen> {
   int _millisecondsElapsed = 0;
   int _movesCount = 0;
 
-  // AI Solver assistant tab
-  bool _isAiHelpOpen = false;
+  // AI Solver assistant
   int _currentStepIndex = 0;
   List<SolverStep> _solverSteps = [];
 
@@ -104,7 +103,6 @@ class _RubikScreenState extends State<RubikScreen> {
       _phase = RubikPlayPhase.cleanBase;
       _millisecondsElapsed = 0;
       _movesCount = 0;
-      _isAiHelpOpen = false;
       _currentStepIndex = 0;
     });
 
@@ -266,9 +264,19 @@ class _RubikScreenState extends State<RubikScreen> {
       appBar: AppBar(
         title: Text(
           widget.onDuelFinish != null ? '⚔️ RUBIK 3D THÁCH ĐẤU' : 'GIẢ LẬP RUBIK 3D',
-          style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 18),
+          style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Sơ đồ 6 mặt (Cube Net)',
+            icon: const Icon(Icons.grid_view_rounded, color: GoddyTheme.neonCyan),
+            onPressed: _showSixFacesNetSheet,
+          ),
+          IconButton(
+            tooltip: 'AI gợi ý giải',
+            icon: const Icon(Icons.smart_toy_outlined, color: GoddyTheme.neonMagenta),
+            onPressed: _showAiAssistantSheet,
+          ),
           IconButton(
             tooltip: 'Đặt lại khối thuần màu',
             icon: const Icon(Icons.refresh, color: GoddyTheme.neonRed),
@@ -276,166 +284,143 @@ class _RubikScreenState extends State<RubikScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Column(
-            children: [
-              // HUD Time & Phase Bar
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: GoddyTheme.glowBox(
-                  borderColor: _phase == RubikPlayPhase.playing ? GoddyTheme.neonGreen : GoddyTheme.neonCyan,
-                  bgColor: GoddyTheme.bgCard,
-                  radius: 14,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            child: Column(
+              children: [
+                // 1. Compact Top HUD Bar (Time, Moves, Scramble/Start Action Button)
+                _buildCompactHud(),
+
+                const SizedBox(height: 4),
+
+                // 2. 3D Rubik Interactive Cube View (Size 210px)
+                RubikCubeWidget(
+                  key: _cubeKey,
+                  size: 210.0,
+                  onMoveExecuted: _onMoveExecuted,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    // Stopwatch Timer
-                    Column(
-                      children: [
-                        Text(
-                          _formattedTime,
-                          style: GoogleFonts.orbitron(
-                            color: _phase == RubikPlayPhase.playing ? GoddyTheme.neonGreen : GoddyTheme.neonAmber,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.5,
-                          ),
-                        ),
-                        const Text('THỜI GIAN GIẢI (GIÂY)', style: TextStyle(color: GoddyTheme.textMuted, fontSize: 10)),
-                      ],
-                    ),
 
-                    // Moves Count
-                    Column(
-                      children: [
-                        Text(
-                          '$_movesCount',
-                          style: GoogleFonts.orbitron(
-                            color: GoddyTheme.neonBlue,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Text('SỐ LƯỢT XOAY', style: TextStyle(color: GoddyTheme.textMuted, fontSize: 10)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+                // 3. Quick Utility Bar (Vuốt 360°, Góc Chuẩn, 6 Mặt, Gợi Ý AI)
+                _buildQuickUtilityBar(),
 
-              const SizedBox(height: 10),
+                const SizedBox(height: 4),
 
-              // Action Buttons: Xáo Trộn / Bắt Đầu / Bắt Đầu Lại
-              _buildControlActionButtons(),
+                // 4. Dual-Pad Gaming Controller Deck (Left: Hàng Ngang, Right: Cột Dọc & Mặt Trước)
+                _buildDualPadController(),
 
-              const SizedBox(height: 10),
-
-              // 3D Rubik Interactive Cube View
-              RubikCubeWidget(
-                key: _cubeKey,
-                onMoveExecuted: _onMoveExecuted,
-              ),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Vuốt xoay 360° tự do',
-                    style: TextStyle(color: GoddyTheme.textMuted, fontSize: 11),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: const Icon(Icons.refresh, size: 14, color: GoddyTheme.neonCyan),
-                    label: const Text('Góc Nhìn Chuẩn', style: TextStyle(color: GoddyTheme.neonCyan, fontSize: 11)),
-                    onPressed: () => _cubeKey.currentState?.resetCameraView(),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 10),
-
-              // Sơ đồ 6 Mặt phẳng trải rộng (2D Net)
-              _buildSixFacesNet(),
-
-              const SizedBox(height: 12),
-
-              // Real-life Rubik Rotation Buttons Panel
-              _buildRealLifeRotationControls(),
-
-              const SizedBox(height: 14),
-
-              // AI Step-by-Step Guidance Toggle (Optional helper)
-              _buildAiAssistantSection(),
-
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildControlActionButtons() {
+  Widget _buildCompactHud() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: GoddyTheme.glowBox(
+        borderColor: _phase == RubikPlayPhase.playing ? GoddyTheme.neonGreen : GoddyTheme.neonCyan,
+        bgColor: GoddyTheme.bgCard,
+        radius: 12,
+      ),
+      child: Row(
+        children: [
+          // Stopwatch Timer
+          const Icon(Icons.timer_outlined, size: 16, color: GoddyTheme.neonAmber),
+          const SizedBox(width: 4),
+          Text(
+            _formattedTime,
+            style: GoogleFonts.orbitron(
+              color: _phase == RubikPlayPhase.playing ? GoddyTheme.neonGreen : GoddyTheme.neonAmber,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(width: 12),
+
+          // Moves Count
+          const Icon(Icons.bolt, size: 16, color: GoddyTheme.neonBlue),
+          const SizedBox(width: 3),
+          Text(
+            '$_movesCount',
+            style: GoogleFonts.orbitron(
+              color: GoddyTheme.neonBlue,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const Spacer(),
+
+          // Compact Action Button
+          _buildCompactActionButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactActionButton() {
     if (_phase == RubikPlayPhase.cleanBase) {
       return SizedBox(
-        width: double.infinity,
-        height: 48,
+        height: 30,
         child: ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
             backgroundColor: GoddyTheme.neonAmber,
             foregroundColor: Colors.black,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          icon: const Icon(Icons.shuffle, fontWeight: FontWeight.bold),
+          icon: const Icon(Icons.shuffle, size: 14),
           label: Text(
-            '1. XÁO TRỘN KHỐI RUBIK',
-            style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 14),
+            'Xáo Trộn',
+            style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 11),
           ),
           onPressed: _handleScramble,
         ),
       );
     } else if (_phase == RubikPlayPhase.scrambled) {
       return Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            flex: 2,
-            child: SizedBox(
-              height: 48,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: GoddyTheme.neonGreen,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.play_arrow, size: 26),
-                label: Text(
-                  '2. BẮT ĐẦU TÍNH GIỜ',
-                  style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                onPressed: _startStopwatch,
+          SizedBox(
+            height: 30,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: GoddyTheme.neonGreen,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
+              icon: const Icon(Icons.play_arrow, size: 16),
+              label: Text(
+                'Bắt Đầu',
+                style: GoogleFonts.orbitron(fontWeight: FontWeight.bold, fontSize: 11),
+              ),
+              onPressed: _startStopwatch,
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 48,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: GoddyTheme.neonRed),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: _handleResetToCleanBase,
-                child: const Text('Bắt Đầu Lại', style: TextStyle(color: GoddyTheme.neonRed, fontSize: 12)),
+          const SizedBox(width: 6),
+          SizedBox(
+            height: 30,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: GoddyTheme.neonRed, width: 0.9),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
+              onPressed: _handleResetToCleanBase,
+              child: const Text('Lại', style: TextStyle(color: GoddyTheme.neonRed, fontSize: 11)),
             ),
           ),
         ],
@@ -443,194 +428,236 @@ class _RubikScreenState extends State<RubikScreen> {
     } else {
       // Playing or completed
       return Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: GoddyTheme.neonGreen.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: GoddyTheme.neonGreen),
-              ),
-              child: Center(
-                child: Text(
-                  '⏱️ ĐANG TÍNH GIỜ... HÃY XOAY VỀ 6 MẶT ĐỒNG MÀU!',
-                  style: GoogleFonts.orbitron(
-                    color: GoddyTheme.neonGreen,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 10,
-                  ),
-                ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: GoddyTheme.neonGreen.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: GoddyTheme.neonGreen, width: 0.9),
+            ),
+            child: Text(
+              '⏱️ ĐANG GIẢI',
+              style: GoogleFonts.orbitron(
+                color: GoddyTheme.neonGreen,
+                fontWeight: FontWeight.bold,
+                fontSize: 9.5,
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: GoddyTheme.neonRed),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          const SizedBox(width: 6),
+          SizedBox(
+            height: 30,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: GoddyTheme.neonRed, width: 0.9),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: _handleResetToCleanBase,
+              child: const Text('Lại', style: TextStyle(color: GoddyTheme.neonRed, fontSize: 11)),
             ),
-            onPressed: _handleResetToCleanBase,
-            child: const Text('Bắt Đầu Lại', style: TextStyle(color: GoddyTheme.neonRed, fontSize: 11)),
           ),
         ],
       );
     }
   }
 
-  Widget _buildRealLifeRotationControls() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: GoddyTheme.bgCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'ĐIỀU KHIỂN XOAY Y NHƯ NGOÀI ĐỜI:',
-                style: GoogleFonts.orbitron(
-                  color: GoddyTheme.neonCyan,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
+  Widget _buildQuickUtilityBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.touch_app_outlined, size: 13, color: GoddyTheme.textMuted),
+            SizedBox(width: 3),
+            Text(
+              'Vuốt xoay 360°',
+              style: TextStyle(color: GoddyTheme.textMuted, fontSize: 10.5),
+            ),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              const Icon(Icons.touch_app, size: 16, color: GoddyTheme.neonCyan),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Row 1: Xoay Hàng Ngang Trên (Top Row)
-          _buildDirectionRow(
-            title: 'Hàng Ngang Trên (Top):',
-            btn1Icon: Icons.arrow_back_rounded,
-            btn1Text: 'Ngang Trái',
-            btn1Move: "U'",
-            btn2Icon: Icons.arrow_forward_rounded,
-            btn2Text: 'Ngang Phải',
-            btn2Move: 'U',
-          ),
-          const SizedBox(height: 8),
-
-          // Row 2: Xoay Hàng Ngang Giữa (Middle Row)
-          _buildDirectionRow(
-            title: 'Hàng Ngang Giữa (Equator):',
-            btn1Icon: Icons.arrow_back_rounded,
-            btn1Text: 'Ngang Trái',
-            btn1Move: 'E',
-            btn2Icon: Icons.arrow_forward_rounded,
-            btn2Text: 'Ngang Phải',
-            btn2Move: "E'",
-          ),
-          const SizedBox(height: 8),
-
-          // Row 3: Xoay Hàng Ngang Dưới (Bottom Row)
-          _buildDirectionRow(
-            title: 'Hàng Ngang Dưới (Bottom):',
-            btn1Icon: Icons.arrow_back_rounded,
-            btn1Text: 'Ngang Trái',
-            btn1Move: 'D',
-            btn2Icon: Icons.arrow_forward_rounded,
-            btn2Text: 'Ngang Phải',
-            btn2Move: "D'",
-          ),
-          const SizedBox(height: 8),
-
-          // Row 4: Xoay Cột Dọc Trái (Left Column)
-          _buildDirectionRow(
-            title: 'Cột Dọc Trái (Left):',
-            btn1Icon: Icons.arrow_upward_rounded,
-            btn1Text: 'Dọc Lên',
-            btn1Move: "L'",
-            btn2Icon: Icons.arrow_downward_rounded,
-            btn2Text: 'Dọc Xuống',
-            btn2Move: 'L',
-          ),
-          const SizedBox(height: 8),
-
-          // Row 5: Xoay Cột Dọc Giữa (Middle Column)
-          _buildDirectionRow(
-            title: 'Cột Dọc Giữa (Middle):',
-            btn1Icon: Icons.arrow_upward_rounded,
-            btn1Text: 'Dọc Lên',
-            btn1Move: "M'",
-            btn2Icon: Icons.arrow_downward_rounded,
-            btn2Text: 'Dọc Xuống',
-            btn2Move: 'M',
-          ),
-          const SizedBox(height: 8),
-
-          // Row 6: Xoay Cột Dọc Phải (Right Column)
-          _buildDirectionRow(
-            title: 'Cột Dọc Phải (Right):',
-            btn1Icon: Icons.arrow_upward_rounded,
-            btn1Text: 'Dọc Lên',
-            btn1Move: 'R',
-            btn2Icon: Icons.arrow_downward_rounded,
-            btn2Text: 'Dọc Xuống',
-            btn2Move: "R'",
-          ),
-          const SizedBox(height: 8),
-
-          // Row 7: Xoay Mặt Trước (Front Face)
-          _buildDirectionRow(
-            title: 'Mặt Trước (Front):',
-            btn1Icon: Icons.rotate_right_rounded,
-            btn1Text: 'Xoay Thuận',
-            btn1Move: 'F',
-            btn2Icon: Icons.rotate_left_rounded,
-            btn2Text: 'Xoay Nghịch',
-            btn2Move: "F'",
-          ),
-        ],
-      ),
+              icon: const Icon(Icons.refresh, size: 13, color: GoddyTheme.neonCyan),
+              label: const Text('Góc Chuẩn', style: TextStyle(color: GoddyTheme.neonCyan, fontSize: 10.5)),
+              onPressed: () => _cubeKey.currentState?.resetCameraView(),
+            ),
+            const SizedBox(width: 4),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: const Icon(Icons.grid_view_rounded, size: 13, color: GoddyTheme.neonCyan),
+              label: const Text('6 Mặt', style: TextStyle(color: GoddyTheme.neonCyan, fontSize: 10.5)),
+              onPressed: _showSixFacesNetSheet,
+            ),
+            const SizedBox(width: 4),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: const Icon(Icons.smart_toy_outlined, size: 13, color: GoddyTheme.neonMagenta),
+              label: const Text('Gợi Ý AI', style: TextStyle(color: GoddyTheme.neonMagenta, fontSize: 10.5)),
+              onPressed: _showAiAssistantSheet,
+            ),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildDirectionRow({
-    required String title,
-    required IconData btn1Icon,
-    required String btn1Text,
-    required String btn1Move,
-    required IconData btn2Icon,
-    required String btn2Text,
-    required String btn2Move,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.5),
+  Widget _buildDualPadController() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: GoddyTheme.bgCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Left Pad: Hàng Ngang (3 rows)
           Expanded(
-            flex: 5,
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: GoddyTheme.neonCyan.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '↔️ HÀNG NGANG',
+                    style: GoogleFonts.orbitron(
+                      color: GoddyTheme.neonCyan,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _buildPadRow(
+                  label: 'Trên',
+                  icon1: Icons.arrow_back_rounded,
+                  text1: 'Trái',
+                  move1: "U'",
+                  icon2: Icons.arrow_forward_rounded,
+                  text2: 'Phải',
+                  move2: 'U',
+                  accentColor: GoddyTheme.neonCyan,
+                ),
+                const SizedBox(height: 5),
+                _buildPadRow(
+                  label: 'Giữa',
+                  icon1: Icons.arrow_back_rounded,
+                  text1: 'Trái',
+                  move1: 'E',
+                  icon2: Icons.arrow_forward_rounded,
+                  text2: 'Phải',
+                  move2: "E'",
+                  accentColor: GoddyTheme.neonCyan,
+                ),
+                const SizedBox(height: 5),
+                _buildPadRow(
+                  label: 'Dưới',
+                  icon1: Icons.arrow_back_rounded,
+                  text1: 'Trái',
+                  move1: 'D',
+                  icon2: Icons.arrow_forward_rounded,
+                  text2: 'Phải',
+                  move2: "D'",
+                  accentColor: GoddyTheme.neonCyan,
+                ),
+              ],
             ),
           ),
+
           const SizedBox(width: 8),
+
+          // Right Pad: Cột Dọc & Mặt Trước (4 rows)
           Expanded(
-            flex: 6,
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildActionButton(
-                  icon: btn1Icon,
-                  text: btn1Text,
-                  move: btn1Move,
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: GoddyTheme.neonBlue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '↕️ CỘT DỌC & TRƯỚC',
+                    style: GoogleFonts.orbitron(
+                      color: GoddyTheme.neonBlue,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 6),
-                _buildActionButton(
-                  icon: btn2Icon,
-                  text: btn2Text,
-                  move: btn2Move,
+                const SizedBox(height: 6),
+                _buildPadRow(
+                  label: 'Trái',
+                  icon1: Icons.arrow_upward_rounded,
+                  text1: 'Lên',
+                  move1: "L'",
+                  icon2: Icons.arrow_downward_rounded,
+                  text2: 'Xuống',
+                  move2: 'L',
+                  accentColor: GoddyTheme.neonBlue,
+                ),
+                const SizedBox(height: 5),
+                _buildPadRow(
+                  label: 'Giữa',
+                  icon1: Icons.arrow_upward_rounded,
+                  text1: 'Lên',
+                  move1: "M'",
+                  icon2: Icons.arrow_downward_rounded,
+                  text2: 'Xuống',
+                  move2: 'M',
+                  accentColor: GoddyTheme.neonBlue,
+                ),
+                const SizedBox(height: 5),
+                _buildPadRow(
+                  label: 'Phải',
+                  icon1: Icons.arrow_upward_rounded,
+                  text1: 'Lên',
+                  move1: 'R',
+                  icon2: Icons.arrow_downward_rounded,
+                  text2: 'Xuống',
+                  move2: "R'",
+                  accentColor: GoddyTheme.neonBlue,
+                ),
+                const SizedBox(height: 5),
+                _buildPadRow(
+                  label: 'Trước',
+                  icon1: Icons.rotate_right_rounded,
+                  text1: 'Thuận',
+                  move1: 'F',
+                  icon2: Icons.rotate_left_rounded,
+                  text2: 'Nghịch',
+                  move2: "F'",
+                  accentColor: GoddyTheme.neonAmber,
                 ),
               ],
             ),
@@ -640,133 +667,263 @@ class _RubikScreenState extends State<RubikScreen> {
     );
   }
 
-  Widget _buildActionButton({
+  Widget _buildPadRow({
+    required String label,
+    required IconData icon1,
+    required String text1,
+    required String move1,
+    required IconData icon2,
+    required String text2,
+    required String move2,
+    required Color accentColor,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 32,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: _buildMiniPadButton(
+            icon: icon1,
+            text: text1,
+            move: move1,
+            accentColor: accentColor,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: _buildMiniPadButton(
+            icon: icon2,
+            text: text2,
+            move: move2,
+            accentColor: accentColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMiniPadButton({
     required IconData icon,
     required String text,
     required String move,
+    required Color accentColor,
   }) {
-    return Expanded(
-      child: SizedBox(
-        height: 38,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF1E293B),
-            foregroundColor: GoddyTheme.neonCyan,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            elevation: 1,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-              side: BorderSide(color: GoddyTheme.neonCyan.withValues(alpha: 0.3)),
+    return SizedBox(
+      height: 29,
+      child: Material(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => _cubeKey.currentState?.executeMove(move),
+          splashColor: accentColor.withValues(alpha: 0.35),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: accentColor.withValues(alpha: 0.35), width: 0.9),
             ),
-          ),
-          onPressed: () => _cubeKey.currentState?.executeMove(move),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: GoddyTheme.neonCyan,
-                size: 14,
-                shadows: const [
-                  Shadow(color: GoddyTheme.neonCyan, blurRadius: 6),
-                ],
-              ),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: GoddyTheme.neonCyan,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(color: GoddyTheme.neonCyan, blurRadius: 4),
-                    ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: accentColor, size: 12),
+                const SizedBox(width: 2.5),
+                Flexible(
+                  child: Text(
+                    text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: accentColor,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildAiAssistantSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: GoddyTheme.bgCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white12),
+  void _showSixFacesNetSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: GoddyTheme.bgDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        side: BorderSide(color: GoddyTheme.neonCyan, width: 1.5),
       ),
-      child: Column(
-        children: [
-          ListTile(
-            dense: true,
-            leading: const Icon(Icons.smart_toy_outlined, color: GoddyTheme.neonMagenta),
-            title: const Text(
-              'GỢI Ý TỪNG BƯỚC AI (NẾU BỊ BÍ)',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-            trailing: Icon(
-              _isAiHelpOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-              color: GoddyTheme.neonMagenta,
-            ),
-            onTap: () => setState(() => _isAiHelpOpen = !_isAiHelpOpen),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _buildSixFacesNet(),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 38,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: GoddyTheme.neonCyan,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const Text('ĐÓNG & TIẾP TỤC CHƠI', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
           ),
-          if (_isAiHelpOpen) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        );
+      },
+    );
+  }
+
+  void _showAiAssistantSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: GoddyTheme.bgDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        side: BorderSide(color: GoddyTheme.neonMagenta, width: 1.5),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final hasMoreSteps = _currentStepIndex < _solverSteps.length;
+            final currentStep = hasMoreSteps ? _solverSteps[_currentStepIndex] : null;
+
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    _currentStepIndex < _solverSteps.length
-                        ? _solverSteps[_currentStepIndex].stageName
-                        : 'Đã hoàn tất tất cả hướng dẫn!',
-                    style: const TextStyle(color: GoddyTheme.neonCyan, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _currentStepIndex < _solverSteps.length
-                        ? _solverSteps[_currentStepIndex].descriptionVi
-                        : '',
-                    style: const TextStyle(color: GoddyTheme.textMuted, fontSize: 11),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: GoddyTheme.neonMagenta,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      icon: const Icon(Icons.arrow_forward, size: 14),
-                      label: const Text('Thực hiện bước này', style: TextStyle(fontSize: 11)),
-                      onPressed: () {
-                        if (_currentStepIndex < _solverSteps.length) {
-                          final step = _solverSteps[_currentStepIndex];
-                          if (step.algorithm.isNotEmpty) {
-                            _cubeKey.currentState?.executeMove(step.algorithm[0]);
-                          }
-                          setState(() {
-                            _currentStepIndex++;
-                          });
-                        }
-                      },
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.smart_toy_outlined, color: GoddyTheme.neonMagenta, size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        'AI HƯỚNG DẪN GIẢI TỪNG BƯỚC',
+                        style: GoogleFonts.orbitron(
+                          color: GoddyTheme.neonMagenta,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: GoddyTheme.bgCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: GoddyTheme.neonMagenta.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          currentStep != null ? currentStep.stageName : '🎉 Đã hoàn tất tất cả hướng dẫn!',
+                          style: const TextStyle(color: GoddyTheme.neonCyan, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          currentStep != null ? currentStep.descriptionVi : 'Khối Rubik đã sẵn sàng được giải.',
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      if (hasMoreSteps) ...[
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: GoddyTheme.neonMagenta,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                            icon: const Icon(Icons.play_arrow, size: 18),
+                            label: const Text('Thực hiện bước này', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            onPressed: () {
+                              if (_currentStepIndex < _solverSteps.length) {
+                                final step = _solverSteps[_currentStepIndex];
+                                if (step.algorithm.isNotEmpty) {
+                                  _cubeKey.currentState?.executeMove(step.algorithm[0]);
+                                }
+                                setState(() {
+                                  _currentStepIndex++;
+                                });
+                                setSheetState(() {});
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.white30),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Đóng', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
                 ],
               ),
-            ),
-          ],
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
